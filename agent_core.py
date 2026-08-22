@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 import google.generativeai as genai
 from notebooklm_bridge import query_live_notebooklm, get_notebooklm_knowledge
 from product_hunter import generate_daily_winning_products
+from sheets_bridge import parse_product_dossier_to_dict, push_to_google_sheet
 
 load_dotenv()
 
@@ -415,6 +416,15 @@ async def on_message(message):
         async with message.channel.typing():
             response_text = await ask_gemini(user_text, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
             
+        # Google Sheet bridge extraction
+        if "sheet" in user_text.lower() or "tableau" in user_text.lower():
+            product_dict = parse_product_dossier_to_dict(response_text if len(response_text) > 100 else user_text)
+            push_res = push_to_google_sheet(product_dict)
+            if push_res.get("success"):
+                response_text += f"\n\n📊 **GOOGLE SHEETS :** {push_res.get('message')}"
+            elif "GOOGLE_SHEET_WEBHOOK_URL" not in os.environ or not os.environ.get("GOOGLE_SHEET_WEBHOOK_URL"):
+                response_text += f"\n\n💡 *[PONT GOOGLE SHEETS PRÊT]* : Dès que tu ajoutes l'URL de ton Webhook Google Sheet, ce produit y sera injecté avec ses 36 colonnes !"
+
         # Mac task extraction if needed
         if "tâche mac" in user_text.lower() or "à faire sur le mac" in user_text.lower() or "a-faire-sur-le-mac" in channel_name:
             task_summary = response_text.split("\n")[0][:120] if response_text else user_text[:120]
