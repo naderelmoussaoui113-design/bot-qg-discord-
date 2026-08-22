@@ -1,12 +1,3 @@
-/**
- * GOOGLE APPS SCRIPT - DASHBOARD EXECUTIVE & TRACKER LUXE E-COMMERCE (NADER QG)
- * 
- * Ce script crée automatiquement 2 ONGLETS ultra-esthétiques :
- * 1. 📱 "FICHE DERNIER WINNER" : Une mise en page "Carte d'Investissement / VC Dashboard"
- *    avec des blocs visuels, des couleurs soignées, du texte aéré et lisible sans défiler à l'infini !
- * 2. 📋 "BASE DE DONNÉES" : Le tableau comparatif global pour archiver tous tes winners.
- */
-
 function doPost(e) {
   var lock = LockService.getScriptLock();
   lock.tryLock(10000);
@@ -16,9 +7,7 @@ function doPost(e) {
     var rawData = e.postData.contents;
     var data = JSON.parse(rawData);
 
-    // ==========================================
-    // 1. ONGLET "📱 FICHE WINNER" (DESIGN DASHBOARD)
-    // ==========================================
+    // 1. ONGLET "📱 FICHE DU WINNER" (DASHBOARD VISUEL)
     var cardSheet = ss.getSheetByName("📱 FICHE DU WINNER");
     if (!cardSheet) {
       cardSheet = ss.insertSheet("📱 FICHE DU WINNER", 0);
@@ -26,35 +15,41 @@ function doPost(e) {
     cardSheet.clear();
     cardSheet.setGridlines(true);
 
-    // Configuration des largeurs de colonnes pour un affichage parfait
-    cardSheet.setColumnWidth(1, 40);   // Marge gauche
-    cardSheet.setColumnWidth(2, 220);  // Libellé / Clé
-    cardSheet.setColumnWidth(3, 380);  // Données / Valeur
-    cardSheet.setColumnWidth(4, 30);   // Séparateur central
-    cardSheet.setColumnWidth(5, 220);  // Libellé Droite
-    cardSheet.setColumnWidth(6, 380);  // Données Droite
+    cardSheet.setColumnWidth(1, 40);
+    cardSheet.setColumnWidth(2, 220);
+    cardSheet.setColumnWidth(3, 380);
+    cardSheet.setColumnWidth(4, 30);
+    cardSheet.setColumnWidth(5, 220);
+    cardSheet.setColumnWidth(6, 380);
 
-    // HEADER PRINCIPAL (Bannière Sombre & Or)
     cardSheet.getRange("B2:F2").merge()
       .setValue("🏆 FICHE D'ÉVALUATION EXECUTIVE - " + (data.nom || "PRODUIT DÉTECTÉ").toUpperCase())
       .setBackground("#111827")
       .setFontColor("#FBBF24")
-      .setFontSize(14)
+      .setFontSize(13)
       .setFontWeight("bold")
       .setHorizontalAlignment("center")
       .setVerticalAlignment("middle");
     cardSheet.setRowHeight(2, 45);
 
-    // SOUS-HEADER : DATE & VERDICT
     cardSheet.getRange("B3:C3").merge()
       .setValue("📅 Date d'analyse : " + (data.date_ajout || Utilities.formatDate(new Date(), "GMT+2", "dd/MM/yyyy")))
-      .setBackground("#1F2937").setFontColor("#E5E7EB").setFontSize(10).setVerticalAlignment("middle");
+      .setBackground("#1F2937")
+      .setFontColor("#E5E7EB")
+      .setFontSize(10)
+      .setVerticalAlignment("middle");
+
     cardSheet.getRange("E3:F3").merge()
       .setValue("⚖️ VERDICT : " + (data.verdict || "🟢 LANCER IMMÉDIATEMENT") + " (" + (data.score_total || "45/50") + ")")
-      .setBackground("#064E3B").setFontColor("#34D399").setFontSize(11).setFontWeight("bold").setHorizontalAlignment("center").setVerticalAlignment("middle");
+      .setBackground("#064E3B")
+      .setFontColor("#34D399")
+      .setFontSize(11)
+      .setFontWeight("bold")
+      .setHorizontalAlignment("center")
+      .setVerticalAlignment("middle");
     cardSheet.setRowHeight(3, 30);
 
-    // --- BLOC 1 (GAUCHE) : IDENTITÉ & SOURCING ---
+    // BLOC 1 : IDENTITÉ & SOURCING
     cardSheet.getRange("B5:C5").merge().setValue("📦 1. IDENTITÉ & SOURCING").setBackground("#0F766E").setFontColor("#FFFFFF").setFontWeight("bold");
     var leftIdentity = [
       ["Niche / Marché", data.niche || "Santé / Confort"],
@@ -71,7 +66,7 @@ function doPost(e) {
       cardSheet.getRange("C" + r).setValue(leftIdentity[i][1]).setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
     }
 
-    // --- BLOC 2 (DROITE) : FINANCE & MARGES ---
+    // BLOC 2 : FINANCE & MARGES
     cardSheet.getRange("E5:F5").merge().setValue("💰 2. PLAN FINANCIER & MARGES").setBackground("#0F766E").setFontColor("#FFFFFF").setFontWeight("bold");
     var rightFinance = [
       ["Coût Livré (COGS)", (data.cogs || "5.80") + " €"],
@@ -87,11 +82,11 @@ function doPost(e) {
       cardSheet.getRange("E" + r).setValue(rightFinance[j][0]).setFontWeight("bold").setBackground("#F3F4F6");
       cardSheet.getRange("F" + r).setValue(rightFinance[j][1]).setFontWeight(j >= 3 ? "bold" : "normal");
       if (j === 3 || j === 6) {
-        cardSheet.getRange("F" + r).setBackground("#D1FAE5").setFontColor("#065F46"); // Vert doux pour marges
+        cardSheet.getRange("F" + r).setBackground("#D1FAE5").setFontColor("#065F46");
       }
     }
 
-    // --- BLOC 3 (GAUCHE) : DEMANDE & DATA FRANCE ---
+    // BLOC 3 : DATA MARCHÉ FRANCE
     var r3_start = 14;
     cardSheet.getRange("B" + r3_start + ":C" + r3_start).merge().setValue("📈 3. DATA MARCHÉ FRANCE").setBackground("#1E40AF").setFontColor("#FFFFFF").setFontWeight("bold");
     var leftMarket = [
@@ -109,14 +104,14 @@ function doPost(e) {
       cardSheet.getRange("C" + r).setValue(leftMarket[k][1]).setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
     }
 
-    // --- BLOC 4 (DROITE) : MARKETING & OFFRE $100M ---
+    // BLOC 4 : STRATÉGIE MARKETING & OFFRE $100M
     cardSheet.getRange("E" + r3_start + ":F" + r3_start).merge().setValue("🎯 4. STRATÉGIE ADS & $100M OFFERS").setBackground("#1E40AF").setFontColor("#FFFFFF").setFontWeight("bold");
     var rightMarketing = [
       ["Offre Pack Duo ($100M)", data.pack_duo || "49.90 € (Marge : 38.30 €)"],
       ["Problème Viscéral", data.probleme || "Douleur sciatique et inconfort assis"],
       ["Effet Wow / Démo 3s", data.effet_wow || "Test de l'œuf incassable assis"],
       ["Angle Marketing Principal", data.angle_marketing || "Soulagement immédiat posturale"],
-      ["Hook Visuel #1 (Arrêt de scroll)", data.hook_visuel || "Plan serré sur œuf écrasé"],
+      ["Hook Visuel #1 (Arrêt scroll)", data.hook_visuel || "Plan serré sur œuf écrasé"],
       ["Hook Verbal #1 (Script 3s)", data.hook_verbal || "Arrêtez de détruire votre dos."],
       ["Détail des Notes (/50)", data.notes_detail || "Trends 9, Long 10, Conc 9, Mark 10, Eng 9"]
     ];
@@ -126,21 +121,17 @@ function doPost(e) {
       cardSheet.getRange("F" + r).setValue(rightMarketing[l][1]).setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
     }
 
-    // Encadrements esthétiques
-    cardSheet.getRange("B5:C12").setBorder(true, true, true, true, true, true, "#D1D5DB", SpreadsheetApp.BorderStyle.SOLID);
-    cardSheet.getRange("E5:F12").setBorder(true, true, true, true, true, true, "#D1D5DB", SpreadsheetApp.BorderStyle.SOLID);
-    cardSheet.getRange("B14:C21").setBorder(true, true, true, true, true, true, "#D1D5DB", SpreadsheetApp.BorderStyle.SOLID);
-    cardSheet.getRange("E14:F21").setBorder(true, true, true, true, true, true, "#D1D5DB", SpreadsheetApp.BorderStyle.SOLID);
+    // Encadrements propres
+    cardSheet.getRange("B5:C12").setBorder(true, true, true, true, true, true, "#D1D5DB", null);
+    cardSheet.getRange("E5:F12").setBorder(true, true, true, true, true, true, "#D1D5DB", null);
+    cardSheet.getRange("B14:C21").setBorder(true, true, true, true, true, true, "#D1D5DB", null);
+    cardSheet.getRange("E14:F21").setBorder(true, true, true, true, true, true, "#D1D5DB", null);
 
-
-    // ==========================================
-    // 2. ONGLET "📋 BASE DE DONNÉES" (TABLEAU GLOBAL)
-    // ==========================================
+    // 2. ONGLET "📋 BASE DE DONNÉES" (TABLEAU CONDENSÉ)
     var dbSheet = ss.getSheetByName("📋 BASE DE DONNÉES");
     if (!dbSheet) {
       dbSheet = ss.insertSheet("📋 BASE DE DONNÉES", 1);
     }
-
     if (dbSheet.getLastRow() === 0) {
       var headers = [
         "Date", "Statut", "Nom du Produit", "Niche", "Prix Solo (€)", "COGS (€)", "Markup", "Marge Nette (%)",
@@ -173,8 +164,7 @@ function doPost(e) {
     dbSheet.autoResizeColumns(1, 15);
 
     return ContentService.createTextOutput(JSON.stringify({
-      "result": "success",
-      "status": "Dashboard Fiche + Base de Données mis à jour avec succès !"
+      "result": "success"
     })).setMimeType(ContentService.MimeType.JSON);
 
   } catch (error) {
