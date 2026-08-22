@@ -8,6 +8,7 @@ from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import google.generativeai as genai
 from notebooklm_bridge import query_live_notebooklm, get_notebooklm_knowledge
+from product_hunter import generate_daily_winning_products
 
 load_dotenv()
 
@@ -263,9 +264,42 @@ async def ask_gemini(prompt, media_parts=None, channel_name="general", category_
             
     return f"⚠️ Erreur d'analyse IA : {str(last_err)}"
 
+@tasks.loop(hours=24)
+async def daily_product_hunt():
+    try:
+        await bot.wait_until_ready()
+        guild = bot.get_guild(GUILD_ID)
+        if not guild:
+            return
+        
+        # 1. Post in chasse-produits-winners
+        chasse_channel = discord.utils.get(guild.text_channels, name="🎯-chasse-produits-winners")
+        rapport_channel = discord.utils.get(guild.text_channels, name="🌅-rapport-du-matin")
+        
+        winners_dossier = await generate_daily_winning_products(count=3)
+        header = "🌅 **SÉLECTION DU JOUR : 3 PRODUITS GAGNANTS D'ÉLITE (CRITÈRES NOTEBOOKLM)** 🎯\n\n"
+        full_msg = header + winners_dossier
+        
+        if chasse_channel:
+            if len(full_msg) <= 2000:
+                await chasse_channel.send(full_msg)
+            else:
+                chunks = [full_msg[i:i+1950] for i in range(0, len(full_msg), 1950)]
+                for chunk in chunks:
+                    await chasse_channel.send(chunk)
+                    
+        if rapport_channel:
+            await rapport_channel.send(f"📊 **RADAR DU MATIN :** 3 nouveaux produits validés ont été déposés dans {chasse_channel.mention if chasse_channel else '#🎯-chasse-produits-winners'} !")
+            
+        print("✅ Daily winning products generated & sent to Discord!")
+    except Exception as e:
+        print(f"Error in daily_product_hunt: {e}")
+
 @bot.event
 async def on_ready():
     print(f"👑 Mon Associé IA is ONLINE & CONNECTED as {bot.user} (ID: {bot.user.id})")
+    if not daily_product_hunt.is_running():
+        daily_product_hunt.start()
 
 @bot.event
 async def on_message(message):
@@ -336,8 +370,15 @@ async def on_message(message):
             if not response_text or len(response_text) < 20:
                 response_text = await ask_gemini(user_text, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
             response_text = f"🧠 **NOTEBOOKLM (100 SOURCES E-COMMERCE) :**\n\n{response_text}"
+
+    # 3. Product Hunter Channel (On-demand)
+    elif "chasse-produits" in channel_name:
+        async with message.channel.typing():
+            # Check if user specified a niche or asked general hunt
+            winners_dossier = await generate_daily_winning_products(count=3, specific_niche=user_text)
+            response_text = f"🎯 **RADAR WINNERS VALIDÉS (NOTEBOOKLM 100 SOURCES) :**\n\n{winners_dossier}"
             
-    # 3. All other QG and General channels
+    # 4. All other QG and General channels
     else:
         async with message.channel.typing():
             response_text = await ask_gemini(user_text, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
