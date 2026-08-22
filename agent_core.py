@@ -275,8 +275,8 @@ async def daily_product_hunt():
         now_paris = now_utc + datetime.timedelta(hours=2) # Paris summer time
         today_str = now_paris.strftime("%Y-%m-%d")
         
-        # Only run at 08:00 AM Paris time (between 08:00 and 08:59)
-        if now_paris.hour != 8:
+        # Only run at 06:00 AM Paris time (between 06:00 and 06:59)
+        if now_paris.hour != 6:
             return
             
         # Check if already sent today
@@ -294,7 +294,7 @@ async def daily_product_hunt():
         rapport_channel = discord.utils.get(guild.text_channels, name="🌅-rapport-du-matin")
         
         winners_dossier = await generate_daily_winning_products(count=5)
-        header = f"🌅 **RADAR DU MATIN ({now_paris.strftime('%d/%m/%Y')} - 08:00) : 5 WINNERS VALIDÉS** 🎯\n\n"
+        header = f"🌅 **RADAR DU MATIN ({now_paris.strftime('%d/%m/%Y')} - 06:00) : 5 WINNERS VALIDÉS** 🎯\n\n"
         full_msg = header + winners_dossier
         
         if chasse_channel:
