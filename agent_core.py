@@ -295,11 +295,23 @@ async def daily_product_hunt():
     except Exception as e:
         print(f"Error in daily_product_hunt: {e}")
 
+@tasks.loop(minutes=8)
+async def keep_alive_ping():
+    try:
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.get("https://bot-qg-discord.onrender.com/health", timeout=15) as resp:
+                print(f"🔄 Self Keep-Alive Ping: HTTP {resp.status}")
+    except Exception as e:
+        print(f"Self ping error (normal during boot): {e}")
+
 @bot.event
 async def on_ready():
     print(f"👑 Mon Associé IA is ONLINE & CONNECTED as {bot.user} (ID: {bot.user.id})")
     if not daily_product_hunt.is_running():
         daily_product_hunt.start()
+    if not keep_alive_ping.is_running():
+        keep_alive_ping.start()
 
 @bot.event
 async def on_message(message):
