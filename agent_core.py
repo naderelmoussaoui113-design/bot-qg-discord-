@@ -291,5 +291,24 @@ async def on_message(message):
         for chunk in chunks:
             await message.channel.send(chunk)
 
+async def run_web_server():
+    from aiohttp import web
+    async def handle_ping(request):
+        return web.Response(text="Bot is running 24/7 on Cloud!")
+
+    app = web.Application()
+    app.router.add_get("/", handle_ping)
+    app.router.add_get("/health", handle_ping)
+    port = int(os.environ.get("PORT", 10000))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    print(f"🌍 Health-check Web Server listening on port {port}")
+
+async def main():
+    await run_web_server()
+    await bot.start(DISCORD_BOT_TOKEN)
+
 if __name__ == "__main__":
-    bot.run(DISCORD_BOT_TOKEN)
+    asyncio.run(main())
