@@ -7,16 +7,16 @@ import discord
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import google.generativeai as genai
-from notebooklm_bridge import query_live_notebooklm
+from notebooklm_bridge import query_live_notebooklm, get_notebooklm_knowledge
 
-load_dotenv("/Users/naderelmoussaoui/Documents/MON_ESPACE_IA/BOT_QG_DISCORD/.env")
+load_dotenv()
 
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GUILD_ID = int(os.getenv("GUILD_ID", "1540374293416771625"))
 
 # Paths for Shared Memory
-SHARED_DIR = "/Users/naderelmoussaoui/Documents/MON_ESPACE_IA/HQ_SHARED_BRAIN"
+SHARED_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "shared_brain")
 os.makedirs(SHARED_DIR, exist_ok=True)
 MEMORY_FILE = os.path.join(SHARED_DIR, "shared_memory.json")
 TASKS_FILE = os.path.join(SHARED_DIR, "mac_tasks.md")
@@ -34,9 +34,17 @@ def load_shared_memory():
             pass
     return {
         "last_updated": datetime.datetime.now().isoformat(),
-        "active_projects": {
-            "coussins": {"status": "in_progress", "notes": []},
-            "trend_track": {"status": "active_hunting", "validated_products": []}
+        "projects": {
+            "coussins": {
+                "name": "Boutique Coussins Ergonomiques (Shopify)",
+                "target": "Sommeil, cervicales, douleurs dorsales, confort de vie",
+                "notes": []
+            },
+            "ebook_handicap": {
+                "name": "Projet Ebook Handicap & Démarches",
+                "target": "Aidants, familles, personnes en situation de handicap, démarches MDPH",
+                "notes": []
+            }
         },
         "recent_activities": [],
         "mac_todo_queue": []
@@ -46,6 +54,20 @@ def save_shared_memory(data):
     data["last_updated"] = datetime.datetime.now().isoformat()
     with open(MEMORY_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+def append_project_note(project_key, text, is_voice=False):
+    mem = load_shared_memory()
+    if project_key not in mem["projects"]:
+        mem["projects"][project_key] = {"name": project_key, "notes": []}
+    
+    note_entry = {
+        "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "type": "vocal" if is_voice else "texte",
+        "content": text
+    }
+    mem["projects"][project_key]["notes"].append(note_entry)
+    mem["projects"][project_key]["notes"] = mem["projects"][project_key]["notes"][-30:] # keep last 30
+    save_shared_memory(mem)
 
 def append_mac_task(task_text, category="Général"):
     mem = load_shared_memory()
@@ -62,99 +84,122 @@ def append_mac_task(task_text, category="Général"):
     with open(TASKS_FILE, "a", encoding="utf-8") as f:
         f.write(f"- [ ] **[{entry['date']} - {category}]** {task_text}\n")
 
-# Prompts by Channel / Function
+# Prompts by Channel / Function (Integrating NotebookLM Knowledge + Transversality)
 PROMPTS = {
     "global_system": """Tu es l'Associé Stratégique, Directeur E-commerce & Mentor Business d'élite de Nader.
 Tu lui réponds directement sur son Discord mobile (Samsung S25 Ultra).
-Ton style : Percutant, orienté ROI, ultra pragmatique, sans blabla inutile. Tu penses comme un fondateur e-commerce à 7 chiffres (Alex Hormozi, direct-response copywriting, psychologie de persuasion).
+Ton style : Percutant, orienté ROI, structuré, sans blabla inutile. Tu penses comme un fondateur e-commerce à 7 chiffres (Alex Hormozi, direct-response copywriting, psychologie de persuasion).
 
-CONNAISSANCE DES PROJETS DE NADER :
-1. Carnet Google NotebookLM E-Commerce : Connecté en temps réel avec 100 sources d'élite (Focus Business, Meta Ads, TikTok Ads, scaling 10k€/mois, automatisation IA, Claude Design, Shopify).
-2. Boutique Coussins : Coussins ergonomiques / orthopédiques pour le sommeil, le confort cervical et le dos. But : Maximiser le panier moyen (AOV) via des offres bundles (Solo, Duo Couple, Famille) et acquérir via TikTok/Meta Ads et UGC.
-3. Chasse de Produits (Trend Track) : Détection de produits winners avec critères stricts : Marge brute > 70%, effet Wow, résolution d'un problème douloureux, pérennité publicitaire (scaling > 14 jours).
-4. Synchronisation Mac : Tout ce qui nécessite une action sur l'ordinateur de Nader est immédiatement consigné dans la liste des tâches Mac.
-""",
-    
-    "notebooklm-direct": """Rôle : Pont Direct & Moteur d'Interrogation NotebookLM en Temps Réel.
-Objectif : Interroger instantanément le carnet 'E commerce' de 100 sources de Nader sur Google NotebookLM.
-Règles :
-- Fournir des réponses percutantes, complètes et actionnables directement basées sur ses 100 sources e-commerce.
-- Citer les méthodes précises (Focus Business, Meta Ads, TikTok Ads, Scaling 10k/mois, etc.).
+ACCÈS AU CERVEAU CENTRAL NOTEBOOKLM & CONTEXTE DES PROJETS :
+- Tu as accès en continu aux 100 sources d'élite e-commerce de Nader (Focus Business, Meta Ads, TikTok Ads, scaling 10k€/mois, fiscalité LLC, Shopify, Claude Design).
+- Tu as une vision transversale de tous ses projets : Boutique Coussins ergonomiques Shopify, Projet Ebook Handicap, Chasse de produits TrendTrack.
+- Quand Nader te pose une question dans un salon du QG, tu adaptes immédiatement ta réponse avec ses données et méthodes réelles !
 """,
 
-    "offres-et-bundles": """Rôle : Expert Mondial en Structuration d'Offres Irrésistibles ($100M Offers - Alex Hormozi).
-Objectif : Transformer n'importe quel produit en un pack que le client se sentirait idiot de refuser.
-Règles :
-- Toujours proposer 3 niveaux : Solo (entrée), Pack Duo (best-seller recommandé), Pack Famille / Premium (max AOV).
-- Inclure des bonus perçus à haute valeur et faible coût (guides, accessoires, garanties, livraison express).
-- Formuler l'équation de valeur : Rêve désiré x Certitude perçue / (Délai d'obtention x Effort & Sacrifice).
+    "notebook-lm-direct": """Rôle : Moteur d'Interrogation NotebookLM en Direct.
+Objectif : Interroger les 100 sources d'élite de Nader sur Google NotebookLM.
+Directives :
+- Donner des réponses extrêmement précises, directes et détaillées basées sur les documents du carnet.
+- Citer les méthodes, chiffres, filtres et sources exactes.
 """,
 
-    "copywriting-et-pubs": """Rôle : Maître Copywriter Publicitaire Direct-Response (Meta Ads, TikTok Ads, YouTube).
-Objectif : Rédiger des scripts publicitaires à fort taux de conversion.
-Règles :
-- Toujours donner 3 variations de HOOKS visuels et verbaux (les 3 premières secondes).
-- Structure : Hook choc ➜ Agitation de la douleur viscérale ➜ Présentation de la solution unique ➜ Preuve sociale / Démonstration ➜ Appel à l'action d'urgence.
-""",
+    "chasse-produits-winners": """Rôle : Chasseur de Produits Winners & Analyste TrendTrack d'Élite.
+DIRECTIVE STRICTE NOTEBOOKLM : Tu dois appliquer les critères stricts des 5 piliers de recherche de NotebookLM :
+1. Résolution d'un vrai problème douloureux ou passion intense.
+2. Effet Wow / Démontrable en moins de 3 secondes en vidéo (Hook visuel immédiat).
+3. Marge brute > 70% (Prix de vente minimum 3x à 4x le coût d'achat livré).
+4. Logistique fluide (produit léger, incassable, sans électronique défaillante).
+5. Preuve de marché (Boutiques scalées, pubs actives > 14 jours sur TrendTrack / TikTok / Meta).
 
-    "emails-et-sms": """Rôle : Spécialiste Klaviyo & SMS Marketing (Yotpo / SMSBump).
-Objectif : Rédiger des séquences d'abandon de panier et des SMS flash (taux d'ouverture 98%).
-Règles :
-- Pour les SMS : Maximum 160 caractères, ultra percutant avec sentiment d'urgence et call to action direct.
-- Pour les e-mails : Objet intrigant / personnalisé, narration courte, bénéfice clair, bouton d'action visible.
-""",
-
-    "recrutement-ugc": """Rôle : Directeur des Partenariats Créateurs UGC & Influenceurs TikTok.
-Objectif : Rédiger des messages d'approche (DM TikTok/Instagram et E-mails) pour recevoir des vidéos gratuites ou à faible coût en échange du produit. Taux de réponse ciblé : 80%.
-""",
-
-    "chasse-produits-winners": """Rôle : Chasseur de Produits Winners & Analyste Trend Track.
-Objectif : Analyser la viabilité d'un produit selon la grille stricte des 5 Piliers :
-1. Résolution d'un vrai problème ou Passion intense.
-2. Effet Wow / Démontrable en 3 secondes en vidéo.
-3. Marge nette > 70% (Prix de vente >= 3x à 4x le coût produit livré).
-4. Facilité de livraison (léger, non cassable, pas d'électronique fragile).
-5. Preuve de marché (pubs actives depuis > 14 jours sur Meta/TikTok).
-Verdict obligatoire : 🟢 GO (Fort potentiel), 🟡 À TESTER AVEC PRÉCAUTION, ou 🔴 NO-GO (Trop saturé ou marge trop faible).
+FORMAT DE RÉPONSE OBLIGATOIRE :
+Lorsque Nader te demande de chasser des produits, sors systématiquement une liste de 10 PROPOSITIONS VIABLES ET DÉTAILLÉES avec :
+- Nom du produit & Niche
+- La douleur résolue / L'effet Wow
+- Estimation COGS vs Prix de vente conseillé (Marge brute estimée)
+- Angle d'attaque publicitaire (Le Hook visuel)
+- Verdict : 🟢 GO (Fort potentiel), 🟡 À TESTER AVEC PRÉCAUTION, ou 🔴 NO-GO.
 """,
 
     "calculateur-cogs-marges": """Rôle : Directeur Financier & Calculateur de Rentabilité E-commerce.
-Objectif : Calculer au centime près la viabilité financière d'un produit :
-- Coût Produit Fournisseur (COGS)
-- Estimation Livraison (YunExpress / CJ / AliExpress)
-- Prix de vente public conseillé
-- Marge brute (€ et %)
-- Seuil de rentabilité publicitaire (Breakeven ROAS)
-- Bénéfice net estimé dans la poche pour 100 ventes.
+DIRECTIVE STRICTE NOTEBOOKLM : Tu appliques les formules financières exactes de NotebookLM :
+- COGS (Coût Produit + Frais de port fournisseur type YunExpress / CJ / AliExpress)
+- Prix de vente TTC conseillé & Panier Moyen (AOV)
+- Marge brute unitaire en € et en %
+- Breakeven ROAS (Seuil de rentabilité pub = Prix de Vente / Marge Brute)
+- Marge nette estimée après frais de passerelle Stripe/Shopify (2-3%) et budget pub
+- Simulation de bénéfice net en poche pour 50, 100 et 300 commandes/mois.
+Sois précis au centime près et présente les résultats sous forme de tableau clair.
+""",
+
+    "copywriting-pubs-acquisition": """Rôle : Maître Copywriter Direct-Response & Responsable Acquisition (Meta Ads, TikTok Ads, Recrutement UGC).
+Fusionne la puissance créative :
+1. Publicités : Toujours fournir 3 variations de HOOKS visuels et verbaux (les 3 premières secondes) + Script complet (Hook ➜ Agitation de la douleur ➜ Démonstration produit ➜ Offre irrésistible ➜ Call To Action d'urgence).
+2. Recrutement UGC : Rédiger des scripts d'approche DM/Email personnalisés pour engager des créateurs TikTok/Insta (taux de réponse visé : 80%).
+3. Adapte le ton selon le projet (Shop Coussins, Ebook ou nouveau winner).
+""",
+
+    "offres-et-bundles": """Rôle : Expert Mondial en Structuration d'Offres Irrésistibles ($100M Offers - Alex Hormozi).
+Objectif : Transformer le produit en un pack irrésistible pour maximiser le panier moyen (AOV).
+Directives NotebookLM :
+- Toujours structurer en 3 niveaux : Offre Solo (entrée), Pack Duo Couple (Best-seller recommandé avec 20% de remise), Pack Famille / Confort Ultime (Panier Max).
+- Empiler des bonus perçus à haute valeur et coût nul (guides numériques, garanties 30 nuits d'essai, livraison express VIP).
+- Rédiger la garantie « Inversion du risque » (Zéro risque pour le client).
+""",
+
+    "emails-et-sms": """Rôle : Stratège E-mail & SMS Marketing (Klaviyo / SMSBump).
+Directives :
+- SMS : Moins de 160 caractères, ultra percutant, lien court, sentiment d'urgence.
+- E-mails : Objet à fort taux d'ouverture (> 45%), accroche narrative, bénéfice émotionnel, bouton CTA bien mis en évidence.
+- Séquences : Abandon de panier (H+1, H+24, H+48), Bienvenue, Relance post-achat / Upsell.
+""",
+
+    "strategie-marketing": """Rôle : Directeur Stratégique & Architecte Scaling 10k€ - 50k€/mois.
+Directives NotebookLM :
+- Analyse omnicanale (Meta + TikTok + Google SEO/PMax + Email).
+- Stratégie d'expansion de catalogue et rétention client.
+- Optimisation du taux de conversion (CRO) de la boutique Shopify.
 """,
 
     "mine-avis-amazon": """Rôle : Espion Industriel & Exploiteur de Faiblesses Concurrentes.
-Objectif : À partir d'un lien ou nom de concurrent Amazon/Leader, extraire les points faibles récurrents (avis 1 et 2 étoiles) et générer les angles marketing pour lui voler ses clients.
+Directives :
+- Analyse des avis 1 et 2 étoiles des leaders/concurrents pour identifier les frustrations majeures des clients.
+- Transformation de ces défauts en arguments marketing majeurs pour nos produits.
 """,
 
-    "espionnage-pubs-tiktok-meta": """Rôle : Décodeur & Rétro-Ingénieur de Publicités Virales.
-Objectif : Analyser une vidéo ou image de publicité concurrente :
-1. Décortiquer le Hook (pourquoi il arrête le scroll).
-2. Décomposer le script seconde par seconde.
-3. Réécrire 3 nouvelles versions originales prêtes à tourner pour Nader.
+    "espionnage-pubs-tiktok-meta": """Rôle : Rétro-Ingénieur de Publicités Virales.
+Directives :
+- Analyse de la vidéo/image concurrente.
+- Décomposition du Hook et de la structure persuasive.
+- Réécriture de 3 déclinaisons originales pour nos boutiques.
 """,
 
     "demineur-sav-objections": """Rôle : Négociateur d'Élite & Démineur d'Objections Clients.
-Objectif : Transformer les questions pointues, doutes et hésitations en achats fermes et rassurants. Ton : Empathique, pro, ultra convaincant.
+Directives :
+- Traitement bienveillant, commercial et ultra convaincant des doutes clients (délais de livraison, efficacité, retours, garantie).
+- Transformer les hésitations en commandes fermes.
 """,
 
-    "demarchage-b2b-gros": """Rôle : Responsable Grands Comptes B2B.
-Objectif : Rédiger des propositions de vente groupée (kinésithérapeutes, ostéopathes, cliniques, associations, comités d'entreprise) pour vendre 20 à 100 unités par commande sans pub.
+    "demarchage-b2b-gros": """Rôle : Responsable Grands Comptes & Ventes en Gros.
+Directives :
+- Rédiger des propositions de vente groupée (kinés, ostéopathes, entreprises, comités) pour écouler des volumes de 20 à 100 pièces par commande sans publicité.
 """,
 
     "rapport-du-matin": """Rôle : Tableau de Bord Exécutif Quotidien.
-Objectif : Synthétiser l'état du business, les priorités de la journée et l'énergie stratégique pour tout exploser.
+Directives :
+- Synthèse des priorités de la journée, état des chantiers en cours, opportunités de la semaine et plan d'action immédiat.
 """,
 
-    "vocaux-et-notes": """Rôle : Secrétaire Général & Extracteur d'Actions Stratégiques.
-Objectif : Écouter l'audio vocal de Nader (même au volant avec bruit de fond), retranscrire les idées clés, et extraire automatiquement :
-1. Ce qui est validé / décidé.
-2. Les tâches prioritaires qui sont automatiquement envoyées dans le salon 📋-a-faire-sur-le-mac !
+    "brainstorming-general": """Rôle : Sparring-Partner Stratégique & Générateur d'Idées Business.
+Directives :
+- Réflexion libre, challenge des idées, exploration de nouveaux marchés et opportunités de croissance rapide.
+""",
+
+    "vocaux-et-notes": """Rôle : Secrétaire Général & Enregistreur de Contexte Projet.
+Directives :
+- Écouter attentivement le vocal ou la note de Nader.
+- Retranscrire l'idée clé.
+- Enregistrer cette note dans la mémoire dédiée au projet (Coussins ou Ebook).
+- Si une action concrète pour l'ordinateur est mentionnée, l'envoyer directement dans 📋-a-faire-sur-le-mac !
 """
 }
 
@@ -165,14 +210,33 @@ intents.guilds = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-async def ask_gemini(prompt, media_parts=None, channel_name="general"):
+async def ask_gemini(prompt, media_parts=None, channel_name="general", category_name=""):
     models_to_try = ["gemini-3.6-flash", "gemini-3.1-pro-preview", "gemini-3.7-flash"]
     
-    system_instructions = PROMPTS["global_system"]
+    # Load shared memory context
+    mem = load_shared_memory()
+    projects_context = f"\n\n--- MÉMOIRE ACTIVE DES PROJETS DE NADER ---\n"
+    for p_k, p_v in mem.get("projects", {}).items():
+        notes_str = "\n".join([f"- [{n.get('date')}] {n.get('content')}" for n in p_v.get("notes", [])[-5:]])
+        projects_context += f"• Projet {p_v.get('name')} (Cible: {p_v.get('target')}):\n{notes_str or 'Aucune note récente.'}\n"
+    
+    # Base instructions
+    system_instructions = PROMPTS["global_system"] + projects_context
+    
+    # Inject channel-specific prompt
+    matched_prompt = ""
     for key, p in PROMPTS.items():
         if key in channel_name:
-            system_instructions += "\n\n" + p
+            matched_prompt = p
             break
+    
+    if matched_prompt:
+        system_instructions += "\n\n--- RÔLE SPÉCIFIQUE DU SALON #" + channel_name + " ---\n" + matched_prompt
+
+    # For QG channels, inject relevant NotebookLM 100 sources knowledge
+    notebook_knowledge = get_notebooklm_knowledge()
+    if notebook_knowledge and ("PILOTAGE" in category_name.upper() or "QG" in category_name.upper() or "notebook" in channel_name):
+        system_instructions += f"\n\n--- EXTRAIT DU CARNET NOTEBOOKLM (100 SOURCES E-COMMERCE) ---\n{notebook_knowledge[:35000]}\n--- FIN NOTEBOOKLM ---"
             
     contents = []
     if media_parts:
@@ -222,7 +286,7 @@ async def on_message(message):
                 mime = content_type if content_type else "audio/ogg"
                 media_parts.append({"mime_type": mime, "data": file_bytes})
                 if not user_text:
-                    user_text = "Écoute cet enregistrement vocal de Nader. Retranscris l'essentiel et dégage les tâches précises à exécuter sur son Mac."
+                    user_text = "Écoute cet enregistrement vocal de Nader. Retranscris l'essentiel, synthétise les points clés et dégage les tâches précises à exécuter."
             
             elif "image" in content_type or att.filename.endswith((".png", ".jpg", ".jpeg", ".webp")):
                 mime = content_type if content_type else "image/jpeg"
@@ -240,42 +304,63 @@ async def on_message(message):
         return
 
     channel_name = message.channel.name
+    category_name = message.channel.category.name if message.channel.category else ""
     
-    # If in notebooklm-direct, query NotebookLM Live
-    if "notebooklm" in channel_name or "notebook" in user_text.lower():
-        wait_msg = await message.reply("⏳ *Interrogation en direct de ton carnet Google NotebookLM (100 sources E-commerce)...*")
-        try:
-            live_res = await query_live_notebooklm(user_text)
-            if live_res and len(live_res) > 30:
-                response_text = f"🧠 **RÉPONSE EN DIRECT DE TON NOTEBOOKLM (100 SOURCES E-COMMERCE) :**\n\n{live_res}"
-            else:
-                response_text = await ask_gemini(user_text, media_parts=media_parts, channel_name=channel_name)
-            await wait_msg.delete()
-        except Exception:
-            response_text = await ask_gemini(user_text, media_parts=media_parts, channel_name=channel_name)
+    # 1. Project Specific Notes Recording
+    if "vocaux-et-notes" in channel_name:
+        async with message.channel.typing():
+            response_text = await ask_gemini(user_text, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
+            
+            # Save into the corresponding project memory
+            project_key = "coussins" if "COUSSINS" in category_name.upper() else "ebook_handicap" if "EBOOK" in category_name.upper() else "general"
+            append_project_note(project_key, user_text if not is_voice else response_text[:200], is_voice=is_voice)
+            
+            # If task for Mac mentioned
+            if "mac" in user_text.lower() or "à faire" in user_text.lower():
+                task_summary = response_text.split("\n")[0][:120] if response_text else user_text[:120]
+                append_mac_task(task_summary, category=f"{category_name} - {channel_name}")
+                guild = message.guild
+                mac_channel = discord.utils.get(guild.text_channels, name="📋-a-faire-sur-le-mac")
+                if mac_channel:
+                    task_embed = discord.Embed(
+                        title="📌 NOUVELLE ACTION SYNCHRONISÉE POUR LE MAC",
+                        description=f"**Projet :** `{category_name}`\n**Action :** {task_summary}",
+                        color=discord.Color.gold()
+                    )
+                    await mac_channel.send(embed=task_embed)
+    
+    # 2. Direct NotebookLM Channel
+    elif "notebook" in channel_name:
+        async with message.channel.typing():
+            response_text = await query_live_notebooklm(user_text)
+            if not response_text or len(response_text) < 20:
+                response_text = await ask_gemini(user_text, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
+            response_text = f"🧠 **NOTEBOOKLM (100 SOURCES E-COMMERCE) :**\n\n{response_text}"
+            
+    # 3. All other QG and General channels
     else:
         async with message.channel.typing():
-            response_text = await ask_gemini(user_text, media_parts=media_parts, channel_name=channel_name)
+            response_text = await ask_gemini(user_text, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
+            
+        # Mac task extraction if needed
+        if "tâche mac" in user_text.lower() or "à faire sur le mac" in user_text.lower() or "a-faire-sur-le-mac" in channel_name:
+            task_summary = response_text.split("\n")[0][:120] if response_text else user_text[:120]
+            append_mac_task(task_summary, category=channel_name)
+            guild = message.guild
+            mac_channel = discord.utils.get(guild.text_channels, name="📋-a-faire-sur-le-mac")
+            if mac_channel and mac_channel.id != message.channel.id:
+                task_embed = discord.Embed(
+                    title="📌 NOUVELLE ACTION SYNCHRONISÉE POUR LE MAC",
+                    description=f"**Source :** Salon `#{channel_name}`\n**Action :** {task_summary}",
+                    color=discord.Color.green()
+                )
+                await mac_channel.send(embed=task_embed)
     
-    # Task logging
-    if is_voice or "tâche mac" in user_text.lower() or "à faire sur le mac" in user_text.lower() or "a-faire-sur-le-mac" in channel_name or "vocaux-et-notes" in channel_name:
-        task_summary = response_text.split("\n")[0][:120] if response_text else user_text[:120]
-        append_mac_task(task_summary, category=channel_name)
-        guild = message.guild
-        mac_channel = discord.utils.get(guild.text_channels, name="📋-a-faire-sur-le-mac")
-        if mac_channel and mac_channel.id != message.channel.id:
-            task_embed = discord.Embed(
-                title="📌 NOUVELLE ACTION SYNCHRONISÉE POUR LE MAC",
-                description=f"**Source :** Salon `#{channel_name}`\n**Action :** {task_summary}",
-                color=discord.Color.green()
-            )
-            task_embed.set_footer(text="Synchronisé en direct avec le terminal Mac")
-            await mac_channel.send(embed=task_embed)
-    
-    # Shared memory
+    # Log recent activity
     mem = load_shared_memory()
     mem["recent_activities"].append({
         "timestamp": datetime.datetime.now().isoformat(),
+        "category": category_name,
         "channel": channel_name,
         "user_prompt": user_text[:150],
         "bot_summary": response_text[:200]
