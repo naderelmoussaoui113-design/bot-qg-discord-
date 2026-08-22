@@ -264,20 +264,37 @@ async def ask_gemini(prompt, media_parts=None, channel_name="general", category_
             
     return f"⚠️ Erreur d'analyse IA : {str(last_err)}"
 
-@tasks.loop(hours=24)
+LAST_DAILY_HUNT_FILE = os.path.join(SHARED_DIR, "last_daily_hunt.txt")
+
+@tasks.loop(minutes=30)
 async def daily_product_hunt():
     try:
         await bot.wait_until_ready()
+        # Check Paris time (UTC+2 in summer)
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        now_paris = now_utc + datetime.timedelta(hours=2) # Paris summer time
+        today_str = now_paris.strftime("%Y-%m-%d")
+        
+        # Only run at 08:00 AM Paris time (between 08:00 and 08:59)
+        if now_paris.hour != 8:
+            return
+            
+        # Check if already sent today
+        if os.path.exists(LAST_DAILY_HUNT_FILE):
+            with open(LAST_DAILY_HUNT_FILE, "r") as f:
+                last_sent = f.read().strip()
+                if last_sent == today_str:
+                    return # Already sent today!
+                    
         guild = bot.get_guild(GUILD_ID)
         if not guild:
             return
         
-        # 1. Post in chasse-produits-winners
         chasse_channel = discord.utils.get(guild.text_channels, name="🎯-chasse-produits-winners")
         rapport_channel = discord.utils.get(guild.text_channels, name="🌅-rapport-du-matin")
         
         winners_dossier = await generate_daily_winning_products(count=5)
-        header = "🌅 **SÉLECTION DU JOUR : 5 PRODUITS GAGNANTS D'ÉLITE (MÉTHODE FOCUS & ZEZINHO / FRANCE)** 🎯\n\n"
+        header = f"🌅 **RADAR DU MATIN ({now_paris.strftime('%d/%m/%Y')} - 08:00) : 5 WINNERS VALIDÉS** 🎯\n\n"
         full_msg = header + winners_dossier
         
         if chasse_channel:
@@ -289,9 +306,12 @@ async def daily_product_hunt():
                     await chasse_channel.send(chunk)
                     
         if rapport_channel:
-            await rapport_channel.send(f"📊 **RADAR DU MATIN :** 3 nouveaux produits validés ont été déposés dans {chasse_channel.mention if chasse_channel else '#🎯-chasse-produits-winners'} !")
+            await rapport_channel.send(f"📊 **RADAR DU MATIN :** Tes 5 produits gagnants du jour sont prêts dans {chasse_channel.mention if chasse_channel else '#🎯-chasse-produits-winners'} !")
             
-        print("✅ Daily winning products generated & sent to Discord!")
+        with open(LAST_DAILY_HUNT_FILE, "w") as f:
+            f.write(today_str)
+            
+        print(f"✅ Daily winning products generated & sent to Discord for {today_str}!")
     except Exception as e:
         print(f"Error in daily_product_hunt: {e}")
 
