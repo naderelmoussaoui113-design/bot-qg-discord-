@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Google Apps Script Webhook URL or Google Sheets API endpoint
-GOOGLE_SHEET_WEBHOOK_URL = os.getenv("GOOGLE_SHEET_WEBHOOK_URL", "")
+GOOGLE_SHEET_WEBHOOK_URL = os.getenv("GOOGLE_SHEET_WEBHOOK_URL", "https://script.google.com/macros/s/AKfycbxaGQSp1gIzw87YZ5bGDzuG6PlLpEoDF-612c86wXEQWml-T9ekliVfxtvafxyR6cVewQ/exec")
 
 # 36 Columns Definition based on Focus & Zezinho (NotebookLM)
 SHEET_HEADERS = [
