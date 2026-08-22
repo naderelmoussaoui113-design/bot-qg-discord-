@@ -121,7 +121,7 @@ Pour chaque produit, fournis la fiche Teardown complète suivante :
 Sois d'une précision chirurgicale, donne de vrais produits concrets et des chiffres réels.
 """
 
-    models = ["gemini-3.6-flash", "gemini-3.1-pro-preview", "gemini-3.7-flash"]
+    models = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
     for m in models:
         try:
             model = genai.GenerativeModel(

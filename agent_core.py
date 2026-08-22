@@ -213,7 +213,7 @@ intents.guilds = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 async def ask_gemini(prompt, media_parts=None, channel_name="general", category_name=""):
-    models_to_try = ["gemini-3.6-flash", "gemini-3.1-pro-preview", "gemini-3.7-flash"]
+    models_to_try = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
     
     # Load shared memory context
     mem = load_shared_memory()
