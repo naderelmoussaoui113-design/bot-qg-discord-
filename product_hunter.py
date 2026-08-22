@@ -10,66 +10,109 @@ from trendtrack_client import get_live_trendtrack_summary, fetch_scaling_shops, 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-async def generate_daily_winning_products(count=3, specific_niche=None):
+async def generate_daily_winning_products(count=5, specific_niche=None):
     """
-    Génère une sélection de produits gagnants (winners) d'élite en croisant :
-    1. L'API TrendTrack en direct (Boutiques scalées, TikTok Library, Top Ads)
-    2. Les critères stricts des 100 sources NotebookLM (Les 5 piliers, Marges > 70%, Effet Wow)
-    3. Les formules de direct-response marketing (Score sur 100, Hooks TikTok/Meta).
+    Moteur de Sélection Ultime selon la méthode FOCUS & ZEZINHO (100 Sources NotebookLM) :
+    - Double Cadrage (Phase 0 & 1) : Markup >= x3.5, Poids < 1kg, 0 batterie/verre
+    - Validation Demande & Concurrence (Phase 2) : Trends 5 ans, SEO 500-5000 / Viral CTR >1.2%, Meta FR 1-5 shops
+    - Validation Financière (Phase 3) : Formule profit, Marge nette >= 20%, Profit >= 8-15€, Livraison FR < 10j
+    - Signaux Rentabilité (Phase 4 & 5) : TrendTrack Shops (10k-100k +20%), Ads actives > 14-60j, TikTok Top Ads
+    - 4 Règles de Sécurité : Runway saisonnier France > 60j, Verrouillage Markup x3.5, Bundle anti-Amazon, Concurrence FR
+    - Scoring /50 et Sortie de 5 Propositions Classées de #1 à #5
     """
     knowledge = get_notebooklm_knowledge()
     trendtrack_data = get_live_trendtrack_summary()
     
-    niche_instruction = f"Niche ciblée par Nader : {specific_niche}" if specific_niche else "Niches variées à fort problème douloureux (Sommeil/Ergonomie, Maison/Pratique, Beauté/Soin, Bébés/Sécurité, Confort/Auto)"
+    current_month = datetime.datetime.now().strftime("%B %Y")
+    niche_instruction = f"Niche ciblée par Nader : {specific_niche}" if specific_niche else "Niches à fort problème douloureux ou passion intense (Santé/Posture/Sommeil, Maison/Pratique/Organisation, Beauté/Soin/Bien-être, Sécurité/Auto, Bébés/Parentalité, Streetwear/Luxe structuré)"
     
     prompt = f"""Tu es le Directeur Chasse de Produits d'Élite & Expert E-commerce à 7 chiffres de Nader.
-Tu disposes d'une connexion directe à l'API TrendTrack et à l'intégralité des 100 sources NotebookLM de Nader.
+Tu appliques STRICTEMENT ET SANS DÉVIATION la Méthode Complète Focus & Zezinho (issue de ses 100 sources NotebookLM).
 
-DONNÉES EN DIRECT DE L'API TRENDTRACK :
-- Boutiques scalées surveillées : {trendtrack_data.get('recent_scaling_domains')}
-- Volume de créatives TikTok en scaling : {trendtrack_data.get('tiktok_creatives_count')} annonces analysées
-
-DIRECTIVES DE VALIDATION STRICTE (ISSUES DES 100 SOURCES NOTEBOOKLM) :
-1. Résolution d'un vrai problème physique ou émotionnel (douleur, stress, sommeil, posture, temps, sécurité).
-2. Effet Wow immédiat / Démontrable en moins de 3 secondes en vidéo (Hook visuel évident).
-3. Marge brute $\ge$ 70% (Prix de vente conseillé = 3x à 4x le coût fournisseur livré).
-4. Logistique fluide (produit léger < 1kg, incassable, pas d'électronique sensible avec retours).
-5. Preuve de marché (Campagnes publicitaires scalées sur Meta Ad Library et TikTok Ads).
+CONTEXTE TEMPOREL & GÉOGRAPHIQUE :
+- Marché cible : FRANCE (Union Européenne - Données Meta DSA réelles).
+- Période actuelle : {current_month} (Vérifier obligatoirement le Runway de saisonnalité > 60 jours).
+- Données en direct API TrendTrack : {trendtrack_data.get('scaling_shops_count')} shops scalés scannés ({trendtrack_data.get('recent_scaling_domains')}), {trendtrack_data.get('tiktok_creatives_count')} créatives TikTok actives.
 
 {niche_instruction}
 
-Sélectionne exactement {count} PRODUITS GAGNANTS D'ÉLITE et présente une fiche Teardown complète pour chacun :
+═══════════════════════════════════════════════════════════════════════════════
+GRILLE D'ÉVALUATION ET FILTRES À RESPECTER MATHÉMATIQUEMENT :
+═══════════════════════════════════════════════════════════════════════════════
 
-═══════════════════════════════════════════
-🏆 PRODUIT #X : [Nom du Produit] ([Niche])
-═══════════════════════════════════════════
-🎯 1. LA DOULEUR & L'EFFET WOW :
-- Problème résolu : [Description précise de la frustration ou douleur viscérale]
-- Démonstration en 3s : [Ce qu'on voit à l'écran dans les 3 premières secondes de vidéo]
+1. PHASE 0 & 1 (Cadrage & Filtrage Rapide 15 min - 6/7 OUI obligatoires) :
+- Problème viscéral ou Effet Wow 3s.
+- Prix de vente cible : 25 € à 100 € (Sweet spot : 29.90 € - 59.90 €).
+- Markup d'entrée : Strictement $\ge$ x3.5 à x5 (Marge brute avant pub $\ge$ 70%).
+- Logistique : Poids < 1 kg, incassable, zéro batterie lithium, zéro verre, zéro électronique complexe.
+- Introuvable facilement en supermarché ou pharmacie.
 
-💰 2. RENTABILITÉ & FORMULES NOTEBOOKLM :
-- Coût d'achat fournisseur estimé (COGS livré AliExpress/CJ) : [Ex: 6.80 €]
-- Prix de vente conseillé Solo : [Ex: 29.90 €]
-- Marge brute unitaire : [Ex: 23.10 € (77% de marge)]
-- Seuil de rentabilité publicitaire (Breakeven ROAS) : [Ex: 1.29]
-- Offre Pack Recommandée ($100M Offers Duo) : [Ex: Pack Duo à 44.90 € - Marge 31.30 €]
+2. PHASE 2 (Validation Demande & Concurrence France 30 min) :
+- Google Trends 5 ans : Indice > 50 & ascendant (ou stable).
+- Volume SEO National France : Sweet Spot 500 à 5 000 recherches/mois (ou si produit viral pur, CTR TikTok > 1.2%).
+- CPC Intention d'achat : 2 € à 5 €.
+- Concurrence Meta Ad Library France : 1 à 5 concurrents actifs (Timing parfait) ou 5 à 20 (Sain). Rejet si > 50.
 
-📊 3. SCORE DE VIABILITÉ NOTEBOOKLM : [Score sur 100] / 100
-- Problème douloureux : [ /25]
-- Marge & Perceived Value : [ /20]
-- Effet Wow visuel : [ /20]
-- Rareté supermarché : [ /15]
-- Facilité livraison : [ /10]
-- Potentiel publicitaire : [ /10]
-🟢 VERDICT : GO IMMÉDIAT (ou 🟡 À TESTER AVEC OFFRE DUO)
+3. PHASE 3 (Validation Financière Chirurgicale 10 min) :
+- Formule Profit : Prix TTC - Sourcing - Port - CAC (< 30% prix) - Frais Stripe (2.9% + 0.30€) - Retours.
+- Marge Nette cible : $\ge$ 20 % à 25 %.
+- Bénéfice Net Unitaire : $\ge$ 8 € à 15 € / commande.
+- Livraison France : Strictement < 10 jours ouvrés (YunExpress / Special Line FR).
 
-🎬 4. STRATÉGIE CRÉATIVE ADS (TIKTOK & META) :
-- Hook Visuel #1 : [Scène choc arrêtant le scroll]
-- Hook Verbal #1 : "[Phrase d'accroche percutante]"
-- Angle marketing principal : [Angle psychologique : Soulagement / Peur de rater / Avant-Après]
+4. PHASE 4 & 5 (Signaux de Rentabilité & Filtres TrendTrack) :
+- Longévité des pubs : 15 à 60+ jours actives.
+- Volume créatives concurrent : 6 à 10+ créatives en scaling.
+- Données TrendTrack : Shops 10k à 100k visites avec croissance > +20%, âge < 6 mois, pixel Meta.
+- Sourcing : Usine Alibaba/1688 Trade Assurance, Verified Supplier, Ancienneté > 3 ans.
+
+5. SYSTÈME DE SCORING SUR 50 :
+- Trends France (/10) + Longévité Pubs (/10) + Concurrence saine FR (/10) + Markup $\ge$ x3.5 (/10) + Engagement (/10).
+- Verdict : 40-50 / 50 ➜ 🟢 LANCER IMMÉDIATEMENT | 30-39 / 50 ➜ 🟡 TEST PRUDENT (Pack Duo) | < 30 / 50 ➜ 🔴 REJET.
+
+═══════════════════════════════════════════════════════════════════════════════
+FORMAT DE SORTIE OBLIGATOIRE POUR CHACUNE DES {count} PROPOSITIONS (CLASSÉES DE #1 À #{count}) :
+═══════════════════════════════════════════════════════════════════════════════
+
+Pour chaque produit, fournis la fiche Teardown complète suivante :
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏆 WINNER #{count-1} : [NOM DU PRODUIT] ([NICHE])
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 1. CADRAGE & DOULEUR RÉSOLUE (PHASE 0 & 1) :
+- Problème viscéral résolu : [Description de la frustration client]
+- Effet Wow en 3s : [Scène visuelle qui stoppe le scroll]
+- Poids & Logistique : [Poids estimé, robustesse, zéro batterie/verre]
+- Saisonnalité France ({current_month}) : [Runway estimé > 60-90 jours]
+
+📊 2. VALIDATION DATA & MARCHÉ FRANCE (PHASE 2) :
+- Google Trends France (5 ans) : [Score et tendance]
+- SEO France / Intention : [Volume estimé + CPC moyen]
+- Concurrents Meta Ad Library FR : [Nombre estimé de shops actifs en France]
+
+💰 3. CALCUL FINANCIER CHIRURGICAL (PHASE 3) :
+- Coût d'achat fournisseur livré (COGS) : [X.XX €]
+- Prix de vente conseillé Solo : [XX.XX €] (Markup : x[X.X])
+- Marge brute unitaire : [XX.XX € ([XX]%)]
+- Seuil de rentabilité (Breakeven ROAS) : [X.XX]
+- Marge nette estimée après pub & Stripe : [XX.XX € ([XX]%)]
+- Offre $100M Recommandée : [Pack Duo Best-seller à XX.XX € avec Ebook / Garantie 30 nuits]
+
+📈 4. SIGNAUX TRENDTRACK & PREUVES CONCURRENTIELLES (PHASE 4) :
+- Ancienneté des pubs actives : [X jours / Semaines]
+- Volume de créatives en scaling : [X créatives actives]
+- Profil boutique concurrente (TrendTrack) : [Trafic 10k-100k, croissance, Shopify]
+
+🔢 5. SCORING DE VALIDATION NOTEBOOKLM : [Score] / 50
+- Google Trends : [ /10] | Pubs actives >7j : [ /10] | Concurrence FR : [ /10] | Markup $\ge$ x3.5 : [ /10] | Engagement : [ /10]
+👉 **VERDICT OFFICIEL :** 🟢 **LANCER IMMÉDIATEMENT (Score $\ge$ 40/50)** ou 🟡 **TEST PRUDENT**
+
+🎬 6. STRATÉGIE CRÉATIVE ADS (TIKTOK & META FRANCE) :
+- Hook Visuel #1 : [Scène d'arrêt de scroll]
+- Hook Verbal #1 : "[Phrase d'accroche percutante en français]"
+- Angle psychologique : [Peur de la douleur / Gain de temps / Comparaison Avant-Après]
 
 ---
-Sois ultra concret, donne de vrais produits concrets sourçables et des chiffres mathématiquement rentables.
+Sois d'une précision chirurgicale, donne de vrais produits concrets et des chiffres réels.
 """
 
     models = ["gemini-3.6-flash", "gemini-3.1-pro-preview", "gemini-3.7-flash"]
@@ -77,12 +120,13 @@ Sois ultra concret, donne de vrais produits concrets sourçables et des chiffres
         try:
             model = genai.GenerativeModel(
                 model_name=m,
-                generation_config={"temperature": 0.7, "max_output_tokens": 4096}
+                generation_config={"temperature": 0.7, "max_output_tokens": 6000}
             )
             res = await asyncio.to_thread(model.generate_content, prompt)
             if res and res.text:
                 return res.text
-        except Exception:
+        except Exception as e:
+            print(f"Model error {m}: {e}")
             continue
             
     return "⚠️ Impossible de générer la sélection de produits pour le moment."

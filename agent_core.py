@@ -276,8 +276,8 @@ async def daily_product_hunt():
         chasse_channel = discord.utils.get(guild.text_channels, name="🎯-chasse-produits-winners")
         rapport_channel = discord.utils.get(guild.text_channels, name="🌅-rapport-du-matin")
         
-        winners_dossier = await generate_daily_winning_products(count=3)
-        header = "🌅 **SÉLECTION DU JOUR : 3 PRODUITS GAGNANTS D'ÉLITE (CRITÈRES NOTEBOOKLM)** 🎯\n\n"
+        winners_dossier = await generate_daily_winning_products(count=5)
+        header = "🌅 **SÉLECTION DU JOUR : 5 PRODUITS GAGNANTS D'ÉLITE (MÉTHODE FOCUS & ZEZINHO / FRANCE)** 🎯\n\n"
         full_msg = header + winners_dossier
         
         if chasse_channel:
@@ -375,8 +375,8 @@ async def on_message(message):
     elif "chasse-produits" in channel_name:
         async with message.channel.typing():
             # Check if user specified a niche or asked general hunt
-            winners_dossier = await generate_daily_winning_products(count=3, specific_niche=user_text)
-            response_text = f"🎯 **RADAR WINNERS VALIDÉS (NOTEBOOKLM 100 SOURCES) :**\n\n{winners_dossier}"
+            winners_dossier = await generate_daily_winning_products(count=5, specific_niche=user_text)
+            response_text = f"🎯 **RADAR WINNERS VALIDÉS (MÉTHODE FOCUS & ZEZINHO / FRANCE) :**\n\n{winners_dossier}"
             
     # 4. All other QG and General channels
     else:
