@@ -2,9 +2,13 @@ import os
 import json
 import asyncio
 import datetime
+from dotenv import load_dotenv
 import google.generativeai as genai
 from notebooklm_bridge import get_notebooklm_knowledge
 from trendtrack_client import get_live_trendtrack_summary, fetch_scaling_shops, fetch_tiktok_ads
+
+load_dotenv()
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 async def generate_daily_winning_products(count=3, specific_niche=None):
     """
