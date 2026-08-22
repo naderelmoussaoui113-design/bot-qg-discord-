@@ -48,7 +48,10 @@ GRILLE D'ÉVALUATION ET FILTRES À RESPECTER MATHÉMATIQUEMENT :
 - Introuvable facilement en supermarché ou pharmacie.
 
 2. PHASE 2 (Validation Demande & Concurrence France 30 min) :
-- Google Trends 5 ans : Indice > 50 & ascendant (ou stable).
+- Google Trends France (TRIPLE VÉRIFICATION TEMPORELLE OBLIGATOIRE) :
+  • Vue Macro (5 ans) : Valide la pérennité, la récurrence annuelle et élimine les modes éteintes.
+  • Vue Trimestre (90 jours / 3 mois) : Valide la tendance de fond actuelle (courbe stable ou ascendante).
+  • Vue Micro (30 jours / 1 mois) : Valide le MOMENTUM IMMÉDIAT (accélération des recherches pour un lancement parfait cette semaine).
 - Volume SEO National France : Sweet Spot 500 à 5 000 recherches/mois (ou si produit viral pur, CTR TikTok > 1.2%).
 - CPC Intention d'achat : 2 € à 5 €.
 - Concurrence Meta Ad Library France : 1 à 5 concurrents actifs (Timing parfait) ou 5 à 20 (Sain). Rejet si > 50.
@@ -85,7 +88,10 @@ Pour chaque produit, fournis la fiche Teardown complète suivante :
 - Saisonnalité France ({current_month}) : [Runway estimé > 60-90 jours]
 
 📊 2. VALIDATION DATA & MARCHÉ FRANCE (PHASE 2) :
-- Google Trends France (5 ans) : [Score et tendance]
+- Google Trends France :
+  • 5 ans (Macro/Saisonnalité) : [Tendance générale & stabilité]
+  • 90 jours (Trimestre) : [Tendance actuelle]
+  • 30 jours (Momentum immédiat) : [Accélération récente / Timing de lancement]
 - SEO France / Intention : [Volume estimé + CPC moyen]
 - Concurrents Meta Ad Library FR : [Nombre estimé de shops actifs en France]
 
