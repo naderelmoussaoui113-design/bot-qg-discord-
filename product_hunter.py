@@ -4,44 +4,51 @@ import asyncio
 import datetime
 import google.generativeai as genai
 from notebooklm_bridge import get_notebooklm_knowledge
+from trendtrack_client import get_live_trendtrack_summary, fetch_scaling_shops, fetch_tiktok_ads
 
 async def generate_daily_winning_products(count=3, specific_niche=None):
     """
-    Génère une sélection rigoureuse de produits winners 100% validés
-    en se basant sur les 100 sources NotebookLM (critères des 5 piliers, marges > 70%,
-    effet wow, preuve publicitaire, angles TikTok/Meta Ads).
+    Génère une sélection de produits gagnants (winners) d'élite en croisant :
+    1. L'API TrendTrack en direct (Boutiques scalées, TikTok Library, Top Ads)
+    2. Les critères stricts des 100 sources NotebookLM (Les 5 piliers, Marges > 70%, Effet Wow)
+    3. Les formules de direct-response marketing (Score sur 100, Hooks TikTok/Meta).
     """
     knowledge = get_notebooklm_knowledge()
+    trendtrack_data = get_live_trendtrack_summary()
     
-    niche_instruction = f"Niche ciblée : {specific_niche}" if specific_niche else "Niches variées à fort problème douloureux (Sommeil/Posture, Maison/Organisation, Beauté/Soin, Sécurité/Auto, Bébés/Parents)"
+    niche_instruction = f"Niche ciblée par Nader : {specific_niche}" if specific_niche else "Niches variées à fort problème douloureux (Sommeil/Ergonomie, Maison/Pratique, Beauté/Soin, Bébés/Sécurité, Confort/Auto)"
     
-    prompt = f"""Tu es le Directeur Chasse de Produits & Expert E-commerce à 7 chiffres de Nader.
-Tu dois lui sélectionner et lui analyser exactement {count} PRODUITS GAGNANTS (WINNERS) d'élite prêts à être lancés et scalés.
+    prompt = f"""Tu es le Directeur Chasse de Produits d'Élite & Expert E-commerce à 7 chiffres de Nader.
+Tu disposes d'une connexion directe à l'API TrendTrack et à l'intégralité des 100 sources NotebookLM de Nader.
 
-DIRECTIVE STRICTE : Tu appliques les critères stricts de validation issus de ses 100 sources NotebookLM :
-1. Résolution d'un problème douloureux ou passion viscérale (pas de gadget inutile).
-2. Effet Wow immédiat / Démontrable en 3 secondes en vidéo (TikTok / Meta Ads).
-3. Marge brute $\ge$ 70% (Prix de vente conseillé = 3x à 4x le coût d'achat fournisseur livré).
-4. Logistique simple (produit léger < 1kg, incassable, pas d'électronique complexe avec fort SAV).
-5. Preuve de marché (Campagnes publicitaires scalées avec fort potentiel de viralité).
+DONNÉES EN DIRECT DE L'API TRENDTRACK :
+- Boutiques scalées surveillées : {trendtrack_data.get('recent_scaling_domains')}
+- Volume de créatives TikTok en scaling : {trendtrack_data.get('tiktok_creatives_count')} annonces analysées
+
+DIRECTIVES DE VALIDATION STRICTE (ISSUES DES 100 SOURCES NOTEBOOKLM) :
+1. Résolution d'un vrai problème physique ou émotionnel (douleur, stress, sommeil, posture, temps, sécurité).
+2. Effet Wow immédiat / Démontrable en moins de 3 secondes en vidéo (Hook visuel évident).
+3. Marge brute $\ge$ 70% (Prix de vente conseillé = 3x à 4x le coût fournisseur livré).
+4. Logistique fluide (produit léger < 1kg, incassable, pas d'électronique sensible avec retours).
+5. Preuve de marché (Campagnes publicitaires scalées sur Meta Ad Library et TikTok Ads).
 
 {niche_instruction}
 
-Pour chacun des {count} produits, présente une fiche teardown complète au format suivant :
+Sélectionne exactement {count} PRODUITS GAGNANTS D'ÉLITE et présente une fiche Teardown complète pour chacun :
 
 ═══════════════════════════════════════════
 🏆 PRODUIT #X : [Nom du Produit] ([Niche])
 ═══════════════════════════════════════════
 🎯 1. LA DOULEUR & L'EFFET WOW :
-- Problème résolu : [Description précise de la frustration ou douleur client]
-- Démonstration en 3s : [Ce qu'on voit à l'écran dans les 3 premières secondes]
+- Problème résolu : [Description précise de la frustration ou douleur viscérale]
+- Démonstration en 3s : [Ce qu'on voit à l'écran dans les 3 premières secondes de vidéo]
 
 💰 2. RENTABILITÉ & FORMULES NOTEBOOKLM :
-- Coût d'achat fournisseur estimé (COGS livré) : [Ex: 6.50 €]
+- Coût d'achat fournisseur estimé (COGS livré AliExpress/CJ) : [Ex: 6.80 €]
 - Prix de vente conseillé Solo : [Ex: 29.90 €]
-- Marge brute unitaire : [Ex: 23.40 € (78% de marge)]
-- Seuil de rentabilité publicitaire (Breakeven ROAS) : [Ex: 1.28]
-- Offre Pack Recommandée (Best-seller Duo) : [Ex: Pack Duo à 44.90 € - Marge 31.90 €]
+- Marge brute unitaire : [Ex: 23.10 € (77% de marge)]
+- Seuil de rentabilité publicitaire (Breakeven ROAS) : [Ex: 1.29]
+- Offre Pack Recommandée ($100M Offers Duo) : [Ex: Pack Duo à 44.90 € - Marge 31.30 €]
 
 📊 3. SCORE DE VIABILITÉ NOTEBOOKLM : [Score sur 100] / 100
 - Problème douloureux : [ /25]
@@ -49,16 +56,16 @@ Pour chacun des {count} produits, présente une fiche teardown complète au form
 - Effet Wow visuel : [ /20]
 - Rareté supermarché : [ /15]
 - Facilité livraison : [ /10]
-- Potentiel pub : [ /10]
-🟢 VERDICT : GO IMMÉDIAT (ou 🟡 À TESTER AVEC PACK DUO)
+- Potentiel publicitaire : [ /10]
+🟢 VERDICT : GO IMMÉDIAT (ou 🟡 À TESTER AVEC OFFRE DUO)
 
-🎬 4. STRATÉGIE CRÉATIVE ADS :
+🎬 4. STRATÉGIE CRÉATIVE ADS (TIKTOK & META) :
 - Hook Visuel #1 : [Scène choc arrêtant le scroll]
 - Hook Verbal #1 : "[Phrase d'accroche percutante]"
-- Angle marketing principal : [Ex: Peur de la douleur / Gain de temps / Comparaison avant-après]
+- Angle marketing principal : [Angle psychologique : Soulagement / Peur de rater / Avant-Après]
 
 ---
-Sois ultra concret, donne de vrais produits sourçables sur AliExpress/CJ Dropshipping, et utilise un ton expert sans blabla.
+Sois ultra concret, donne de vrais produits concrets sourçables et des chiffres mathématiquement rentables.
 """
 
     models = ["gemini-3.6-flash", "gemini-3.1-pro-preview", "gemini-3.7-flash"]
