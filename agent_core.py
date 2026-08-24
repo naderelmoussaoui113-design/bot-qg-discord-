@@ -7,9 +7,11 @@ import discord
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import google.generativeai as genai
+import tempfile
 from notebooklm_bridge import query_live_notebooklm, get_notebooklm_knowledge
 from product_hunter import generate_daily_winning_products
 from sheets_bridge import parse_product_dossier_to_dict, push_to_google_sheet
+from web_fetcher import enrich_prompt_with_urls
 
 load_dotenv()
 
@@ -212,6 +214,50 @@ intents.guilds = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+async def send_smart_chunks(destination, text: str):
+    """Découpe intelligemment les longs messages Discord sans couper les mots ni les phrases."""
+    if not text:
+        return
+    
+    if len(text) <= 1950:
+        if hasattr(destination, "reply"):
+            try:
+                await destination.reply(text)
+                return
+            except Exception:
+                pass
+        target = destination.channel if hasattr(destination, "channel") else destination
+        await target.send(text)
+        return
+
+    # Découpage intelligent par lignes / sections
+    lines = text.split("\n")
+    current_chunk = ""
+    first = True
+    
+    for line in lines:
+        if len(current_chunk) + len(line) + 1 > 1900:
+            if current_chunk.strip():
+                if first and hasattr(destination, "reply"):
+                    try:
+                        await destination.reply(current_chunk)
+                        first = False
+                    except Exception:
+                        target = destination.channel if hasattr(destination, "channel") else destination
+                        await target.send(current_chunk)
+                        first = False
+                else:
+                    target = destination.channel if hasattr(destination, "channel") else destination
+                    await target.send(current_chunk)
+                await asyncio.sleep(0.6)
+            current_chunk = line + "\n"
+        else:
+            current_chunk += line + "\n"
+            
+    if current_chunk.strip():
+        target = destination.channel if hasattr(destination, "channel") else destination
+        await target.send(current_chunk)
+
 async def ask_gemini(prompt, media_parts=None, channel_name="general", category_name=""):
     models_to_try = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
     
@@ -254,7 +300,7 @@ async def ask_gemini(prompt, media_parts=None, channel_name="general", category_
             model = genai.GenerativeModel(
                 model_name=model_name,
                 system_instruction=system_instructions,
-                generation_config={"temperature": 0.7, "max_output_tokens": 4096}
+                generation_config={"temperature": 0.7, "max_output_tokens": 8192}
             )
             response = await asyncio.to_thread(model.generate_content, contents)
             if response and response.text:
@@ -299,12 +345,7 @@ async def daily_product_hunt():
         full_msg = header + winners_dossier
         
         if chasse_channel:
-            if len(full_msg) <= 2000:
-                await chasse_channel.send(full_msg)
-            else:
-                chunks = [full_msg[i:i+1950] for i in range(0, len(full_msg), 1950)]
-                for chunk in chunks:
-                    await chasse_channel.send(chunk)
+            await send_smart_chunks(chasse_channel, full_msg)
                     
         if rapport_channel:
             await rapport_channel.send(f"📊 **RADAR DU MATIN :** Tes 5 produits gagnants du jour sont prêts dans {chasse_channel.mention if chasse_channel else '#🎯-chasse-produits-winners'} !")
@@ -342,122 +383,152 @@ async def on_message(message):
     user_text = message.content or ""
     media_parts = []
     is_voice = False
+    temp_files_to_cleanup = []
+    gemini_files_to_cleanup = []
     
-    if message.attachments:
-        for att in message.attachments:
-            file_bytes = await att.read()
-            content_type = att.content_type or ""
-            
-            if "audio" in content_type or att.filename.endswith((".ogg", ".mp3", ".wav", ".m4a", ".aac")):
-                is_voice = True
-                mime = content_type if content_type else "audio/ogg"
-                media_parts.append({"mime_type": mime, "data": file_bytes})
-                if not user_text:
-                    user_text = "Écoute cet enregistrement vocal de Nader. Retranscris l'essentiel, synthétise les points clés et dégage les tâches précises à exécuter."
-            
-            elif "image" in content_type or att.filename.endswith((".png", ".jpg", ".jpeg", ".webp")):
-                mime = content_type if content_type else "image/jpeg"
-                media_parts.append({"mime_type": mime, "data": file_bytes})
-                if not user_text:
-                    user_text = "Analyse attentivement cette image / capture d'écran selon le rôle de ce salon."
-            
-            elif "video" in content_type or att.filename.endswith((".mp4", ".mov", ".webm")):
-                mime = content_type if content_type else "video/mp4"
-                media_parts.append({"mime_type": mime, "data": file_bytes})
-                if not user_text:
-                    user_text = "Analyse cette vidéo publicitaire : décortique le Hook visuel et verbal, la structure et réécris 3 versions adaptées à nos produits."
+    try:
+        if message.attachments:
+            for att in message.attachments:
+                file_bytes = await att.read()
+                content_type = att.content_type or ""
+                
+                if "audio" in content_type or att.filename.endswith((".ogg", ".mp3", ".wav", ".m4a", ".aac")):
+                    is_voice = True
+                    mime = content_type if content_type else "audio/ogg"
+                    media_parts.append({"mime_type": mime, "data": file_bytes})
+                    if not user_text:
+                        user_text = "Écoute cet enregistrement vocal de Nader. Retranscris l'essentiel, synthétise les points clés et dégage les tâches précises à exécuter."
+                
+                elif "image" in content_type or att.filename.endswith((".png", ".jpg", ".jpeg", ".webp")):
+                    mime = content_type if content_type else "image/jpeg"
+                    media_parts.append({"mime_type": mime, "data": file_bytes})
+                    if not user_text:
+                        user_text = "Analyse attentivement cette image / capture d'écran selon le rôle de ce salon."
+                
+                elif "video" in content_type or att.filename.endswith((".mp4", ".mov", ".webm", ".avi", ".mkv")):
+                    mime = content_type if content_type else "video/mp4"
+                    suffix = os.path.splitext(att.filename)[1] or ".mp4"
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
+                        tmp_file.write(file_bytes)
+                        tmp_path = tmp_file.name
+                    temp_files_to_cleanup.append(tmp_path)
+                    
+                    # Upload via Gemini File API pour analyse vidéo multimodale complète
+                    uploaded_video = await asyncio.to_thread(genai.upload_file, tmp_path, mime_type=mime)
+                    while uploaded_video.state.name == "PROCESSING":
+                        await asyncio.sleep(2)
+                        uploaded_video = await asyncio.to_thread(genai.get_file, uploaded_video.name)
+                        
+                    gemini_files_to_cleanup.append(uploaded_video)
+                    media_parts.append(uploaded_video)
+                    
+                    if not user_text:
+                        user_text = "Analyse cette vidéo publicitaire : décortique le Hook visuel (0-3s), le Hook verbal, la démonstration produit, le CTA et réécris 3 versions françaises ultra-performantes adaptées à notre marque."
 
-    if not user_text and not media_parts:
-        return
+        # Enrichissement automatique avec les liens Web / Facebook Ads / TikTok
+        if user_text:
+            user_text, _ = await enrich_prompt_with_urls(user_text)
 
-    channel_name = message.channel.name
-    category_name = message.channel.category.name if message.channel.category else ""
-    
-    # 1. Project Specific Notes Recording
-    if "vocaux-et-notes" in channel_name:
-        async with message.channel.typing():
-            response_text = await ask_gemini(user_text, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
-            
-            # Save into the corresponding project memory
-            project_key = "coussins" if "COUSSINS" in category_name.upper() else "ebook_handicap" if "EBOOK" in category_name.upper() else "general"
-            append_project_note(project_key, user_text if not is_voice else response_text[:200], is_voice=is_voice)
-            
-            # If task for Mac mentioned
-            if "mac" in user_text.lower() or "à faire" in user_text.lower():
+        if not user_text and not media_parts:
+            return
+
+        channel_name = message.channel.name
+        category_name = message.channel.category.name if message.channel.category else ""
+        
+        # 1. Project Specific Notes Recording
+        if "vocaux-et-notes" in channel_name:
+            async with message.channel.typing():
+                response_text = await ask_gemini(user_text, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
+                
+                # Save into the corresponding project memory
+                project_key = "coussins" if "COUSSINS" in category_name.upper() else "ebook_handicap" if "EBOOK" in category_name.upper() else "general"
+                append_project_note(project_key, user_text if not is_voice else response_text[:200], is_voice=is_voice)
+                
+                # If task for Mac mentioned
+                if "mac" in user_text.lower() or "à faire" in user_text.lower():
+                    task_summary = response_text.split("\n")[0][:120] if response_text else user_text[:120]
+                    append_mac_task(task_summary, category=f"{category_name} - {channel_name}")
+                    guild = message.guild
+                    mac_channel = discord.utils.get(guild.text_channels, name="📋-a-faire-sur-le-mac")
+                    if mac_channel:
+                        task_embed = discord.Embed(
+                            title="📌 NOUVELLE ACTION SYNCHRONISÉE POUR LE MAC",
+                            description=f"**Projet :** `{category_name}`\n**Action :** {task_summary}",
+                            color=discord.Color.gold()
+                        )
+                        await mac_channel.send(embed=task_embed)
+        
+        # 2. Direct NotebookLM Channel
+        elif "notebook" in channel_name:
+            async with message.channel.typing():
+                response_text = await query_live_notebooklm(user_text)
+                if not response_text or len(response_text) < 20:
+                    response_text = await ask_gemini(user_text, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
+                response_text = f"🧠 **NOTEBOOKLM (100 SOURCES E-COMMERCE) :**\n\n{response_text}"
+
+        # 3. Product Hunter Channel (On-demand)
+        elif "chasse-produits" in channel_name:
+            async with message.channel.typing():
+                # Check if user specified a niche or asked general hunt
+                winners_dossier = await generate_daily_winning_products(count=5, specific_niche=user_text)
+                response_text = f"🎯 **RADAR WINNERS VALIDÉS (MÉTHODE FOCUS & ZEZINHO / FRANCE) :**\n\n{winners_dossier}"
+                
+        # 4. All other QG and General channels
+        else:
+            async with message.channel.typing():
+                response_text = await ask_gemini(user_text, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
+                
+            # Google Sheet bridge extraction
+            if "sheet" in user_text.lower() or "tableau" in user_text.lower():
+                product_dict = parse_product_dossier_to_dict(response_text if len(response_text) > 100 else user_text)
+                push_res = push_to_google_sheet(product_dict)
+                if push_res.get("success"):
+                    response_text += f"\n\n📊 **GOOGLE SHEETS :** {push_res.get('message')}"
+                elif "GOOGLE_SHEET_WEBHOOK_URL" not in os.environ or not os.environ.get("GOOGLE_SHEET_WEBHOOK_URL"):
+                    response_text += f"\n\n💡 *[PONT GOOGLE SHEETS PRÊT]* : Dès que tu ajoutes l'URL de ton Webhook Google Sheet, ce produit y sera injecté avec ses 36 colonnes !"
+
+            # Mac task extraction if needed
+            if "tâche mac" in user_text.lower() or "à faire sur le mac" in user_text.lower() or "a-faire-sur-le-mac" in channel_name:
                 task_summary = response_text.split("\n")[0][:120] if response_text else user_text[:120]
-                append_mac_task(task_summary, category=f"{category_name} - {channel_name}")
+                append_mac_task(task_summary, category=channel_name)
                 guild = message.guild
                 mac_channel = discord.utils.get(guild.text_channels, name="📋-a-faire-sur-le-mac")
-                if mac_channel:
+                if mac_channel and mac_channel.id != message.channel.id:
                     task_embed = discord.Embed(
                         title="📌 NOUVELLE ACTION SYNCHRONISÉE POUR LE MAC",
-                        description=f"**Projet :** `{category_name}`\n**Action :** {task_summary}",
-                        color=discord.Color.gold()
+                        description=f"**Source :** Salon `#{channel_name}`\n**Action :** {task_summary}",
+                        color=discord.Color.green()
                     )
                     await mac_channel.send(embed=task_embed)
-    
-    # 2. Direct NotebookLM Channel
-    elif "notebook" in channel_name:
-        async with message.channel.typing():
-            response_text = await query_live_notebooklm(user_text)
-            if not response_text or len(response_text) < 20:
-                response_text = await ask_gemini(user_text, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
-            response_text = f"🧠 **NOTEBOOKLM (100 SOURCES E-COMMERCE) :**\n\n{response_text}"
+        
+        # Log recent activity
+        mem = load_shared_memory()
+        mem["recent_activities"].append({
+            "timestamp": datetime.datetime.now().isoformat(),
+            "category": category_name,
+            "channel": channel_name,
+            "user_prompt": user_text[:150],
+            "bot_summary": response_text[:200]
+        })
+        mem["recent_activities"] = mem["recent_activities"][-50:]
+        save_shared_memory(mem)
+        
+        # Reply with smart chunks
+        await send_smart_chunks(message, response_text)
 
-    # 3. Product Hunter Channel (On-demand)
-    elif "chasse-produits" in channel_name:
-        async with message.channel.typing():
-            # Check if user specified a niche or asked general hunt
-            winners_dossier = await generate_daily_winning_products(count=5, specific_niche=user_text)
-            response_text = f"🎯 **RADAR WINNERS VALIDÉS (MÉTHODE FOCUS & ZEZINHO / FRANCE) :**\n\n{winners_dossier}"
-            
-    # 4. All other QG and General channels
-    else:
-        async with message.channel.typing():
-            response_text = await ask_gemini(user_text, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
-            
-        # Google Sheet bridge extraction
-        if "sheet" in user_text.lower() or "tableau" in user_text.lower():
-            product_dict = parse_product_dossier_to_dict(response_text if len(response_text) > 100 else user_text)
-            push_res = push_to_google_sheet(product_dict)
-            if push_res.get("success"):
-                response_text += f"\n\n📊 **GOOGLE SHEETS :** {push_res.get('message')}"
-            elif "GOOGLE_SHEET_WEBHOOK_URL" not in os.environ or not os.environ.get("GOOGLE_SHEET_WEBHOOK_URL"):
-                response_text += f"\n\n💡 *[PONT GOOGLE SHEETS PRÊT]* : Dès que tu ajoutes l'URL de ton Webhook Google Sheet, ce produit y sera injecté avec ses 36 colonnes !"
-
-        # Mac task extraction if needed
-        if "tâche mac" in user_text.lower() or "à faire sur le mac" in user_text.lower() or "a-faire-sur-le-mac" in channel_name:
-            task_summary = response_text.split("\n")[0][:120] if response_text else user_text[:120]
-            append_mac_task(task_summary, category=channel_name)
-            guild = message.guild
-            mac_channel = discord.utils.get(guild.text_channels, name="📋-a-faire-sur-le-mac")
-            if mac_channel and mac_channel.id != message.channel.id:
-                task_embed = discord.Embed(
-                    title="📌 NOUVELLE ACTION SYNCHRONISÉE POUR LE MAC",
-                    description=f"**Source :** Salon `#{channel_name}`\n**Action :** {task_summary}",
-                    color=discord.Color.green()
-                )
-                await mac_channel.send(embed=task_embed)
-    
-    # Log recent activity
-    mem = load_shared_memory()
-    mem["recent_activities"].append({
-        "timestamp": datetime.datetime.now().isoformat(),
-        "category": category_name,
-        "channel": channel_name,
-        "user_prompt": user_text[:150],
-        "bot_summary": response_text[:200]
-    })
-    mem["recent_activities"] = mem["recent_activities"][-50:]
-    save_shared_memory(mem)
-    
-    # Reply split
-    if len(response_text) <= 2000:
-        await message.reply(response_text)
-    else:
-        chunks = [response_text[i:i+1950] for i in range(0, len(response_text), 1950)]
-        for chunk in chunks:
-            await message.channel.send(chunk)
+    finally:
+        # Nettoyage des fichiers locaux et Gemini File API
+        for tmp in temp_files_to_cleanup:
+            try:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+            except Exception:
+                pass
+        for g_file in gemini_files_to_cleanup:
+            try:
+                await asyncio.to_thread(g_file.delete)
+            except Exception:
+                pass
 
 async def run_web_server():
     from aiohttp import web

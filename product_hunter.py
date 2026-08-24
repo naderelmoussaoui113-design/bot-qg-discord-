@@ -119,6 +119,7 @@ Pour chaque produit, fournis la fiche Teardown complète suivante :
 
 ---
 Sois d'une précision chirurgicale, donne de vrais produits concrets et des chiffres réels.
+RÈGLE CRUCIALE : Tu DOIS terminer et compléter l'intégralité des {count} fiches produits de #1 à #{count} sans jamais couper ni abréger.
 """
 
     models = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
@@ -126,7 +127,7 @@ Sois d'une précision chirurgicale, donne de vrais produits concrets et des chif
         try:
             model = genai.GenerativeModel(
                 model_name=m,
-                generation_config={"temperature": 0.7, "max_output_tokens": 6000}
+                generation_config={"temperature": 0.7, "max_output_tokens": 8192}
             )
             res = await asyncio.to_thread(model.generate_content, prompt)
             if res and res.text:
