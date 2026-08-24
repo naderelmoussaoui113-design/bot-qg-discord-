@@ -29,6 +29,13 @@ TASKS_FILE = os.path.join(SHARED_DIR, "mac_tasks.md")
 # Configure Gemini
 genai.configure(api_key=GEMINI_API_KEY)
 
+intents = discord.Intents.default()
+intents.message_content = True
+intents.guilds = True
+intents.members = True
+
+bot = commands.Bot(command_prefix="!", intents=intents)
+
 # Shared Memory Management
 def load_shared_memory():
     if os.path.exists(MEMORY_FILE):
@@ -71,7 +78,7 @@ def append_project_note(project_key, text, is_voice=False):
         "content": text
     }
     mem["projects"][project_key]["notes"].append(note_entry)
-    mem["projects"][project_key]["notes"] = mem["projects"][project_key]["notes"][-30:] # keep last 30
+    mem["projects"][project_key]["notes"] = mem["projects"][project_key]["notes"][-30:]
     save_shared_memory(mem)
 
 def append_mac_task(task_text, category="Général"):
@@ -83,13 +90,14 @@ def append_mac_task(task_text, category="Général"):
         "task": task_text,
         "status": "pending"
     }
-    mem["mac_todo_queue"].append(entry)
+    mem["mac_todo_queue".append(entry) if "mac_todo_queue" in mem else None]
     save_shared_memory(mem)
     
     with open(TASKS_FILE, "a", encoding="utf-8") as f:
-        f.write(f"- [ ] **[{entry['date']} - {category}]** {task_text}\n")
+        f.write(f"- [ ] **[{entry['date']} - {category}]** {task_text}
+")
 
-# Prompts by Channel / Function (Integrating NotebookLM Knowledge + Transversality)
+# Prompts by Channel / Function
 PROMPTS = {
     "global_system": """Tu es l'Associé Stratégique, Directeur E-commerce & Mentor Business d'élite de Nader.
 Tu lui réponds directement sur son Discord mobile (Samsung S25 Ultra).
@@ -98,7 +106,7 @@ Ton style : Percutant, orienté ROI, structuré, sans blabla inutile. Tu penses 
 ACCÈS AU CERVEAU CENTRAL NOTEBOOKLM & CONTEXTE DES PROJETS :
 - Tu as accès en continu aux 100 sources d'élite e-commerce de Nader (Focus Business, Meta Ads, TikTok Ads, scaling 10k€/mois, fiscalité LLC, Shopify, Claude Design).
 - Tu as une vision transversale de tous ses projets : Boutique Coussins ergonomiques Shopify, Projet Ebook Handicap, Chasse de produits TrendTrack.
-- Quand Nader te pose une question dans un salon du QG, tu adaptes immédiatement ta réponse avec ses données et méthodes réelles !
+- Quand Nader te pose une question ou te demande de développer un produit, réponds de façon ultra détaillée, concrète et immédiatement actionnable !
 """,
 
     "notebook-lm-direct": """Rôle : Moteur d'Interrogation NotebookLM en Direct.
@@ -108,171 +116,75 @@ Directives :
 - Citer les méthodes, chiffres, filtres et sources exactes.
 """,
 
-    "chasse-produits-winners": """Rôle : Chasseur de Produits Winners & Analyste TrendTrack d'Élite.
-DIRECTIVE STRICTE NOTEBOOKLM : Tu dois appliquer les critères stricts des 5 piliers de recherche de NotebookLM :
-1. Résolution d'un vrai problème douloureux ou passion intense.
-2. Effet Wow / Démontrable en moins de 3 secondes en vidéo (Hook visuel immédiat).
-3. Marge brute > 70% (Prix de vente minimum 3x à 4x le coût d'achat livré).
-4. Logistique fluide (produit léger, incassable, sans électronique défaillante).
-5. Preuve de marché (Boutiques scalées, pubs actives > 14 jours sur TrendTrack / TikTok / Meta).
-
-FORMAT DE RÉPONSE OBLIGATOIRE :
-Lorsque Nader te demande de chasser des produits, sors systématiquement une liste de 10 PROPOSITIONS VIABLES ET DÉTAILLÉES avec :
-- Nom du produit & Niche
-- La douleur résolue / L'effet Wow
-- Estimation COGS vs Prix de vente conseillé (Marge brute estimée)
-- Angle d'attaque publicitaire (Le Hook visuel)
-- Verdict : 🟢 GO (Fort potentiel), 🟡 À TESTER AVEC PRÉCAUTION, ou 🔴 NO-GO.
+    "chasse-produits-winners": """Rôle : Chasseur de Produits Winners & Développeur d'Offres M d'Élite.
+DIRECTIVES STRICTES :
+1. Si Nader te demande de chasser/chercher des produits : sors une sélection de pépites selon les 5 critères de la Méthode Focus & Zezinho (Marge > 70%, Effet Wow 3s, Logistique < 1kg, 0 batterie).
+2. SI NADER TE DEMANDE DE DÉVELOPPER UN PRODUIT PRÉCIS OU UN DES PRODUITS DE LA LISTE :
+   DÉVELOPPE CE PRODUIT SPÉCIFIQUE EN PROFONDEUR SANS PROPOSER 5 AUTRES PRODUITS !
+   Structure le dossier complet :
+   - 🎯 Offre Irrésistible M (Pack Solo vs Pack Duo à forte marge)
+   - 💰 Pricing & Calcul de rentabilité chirurgical (Prix, COGS, Marge brute, Marge nette)
+   - 🎬 3 Angles de Créatives TikTok & Meta Ads avec Hooks d'arrêt de scroll
+   - 🛍️ Angles Copywriting & Structure de page produit
+   - 📊 Prêt pour injection Google Sheet 36 colonnes
 """,
 
-    "calculateur-cogs-marges": """Rôle : Directeur Financier & Calculateur de Rentabilité E-commerce.
-DIRECTIVE STRICTE NOTEBOOKLM : Tu appliques les formules financières exactes de NotebookLM :
-- COGS (Coût Produit + Frais de port fournisseur type YunExpress / CJ / AliExpress)
-- Prix de vente TTC conseillé & Panier Moyen (AOV)
-- Marge brute unitaire en € et en %
-- Breakeven ROAS (Seuil de rentabilité pub = Prix de Vente / Marge Brute)
-- Marge nette estimée après frais de passerelle Stripe/Shopify (2-3%) et budget pub
-- Simulation de bénéfice net en poche pour 50, 100 et 300 commandes/mois.
-Sois précis au centime près et présente les résultats sous forme de tableau clair.
-""",
-
-    "copywriting-pubs-acquisition": """Rôle : Maître Copywriter Direct-Response & Responsable Acquisition (Meta Ads, TikTok Ads, Recrutement UGC).
-Fusionne la puissance créative :
-1. Publicités : Toujours fournir 3 variations de HOOKS visuels et verbaux (les 3 premières secondes) + Script complet (Hook ➜ Agitation de la douleur ➜ Démonstration produit ➜ Offre irrésistible ➜ Call To Action d'urgence).
-2. Recrutement UGC : Rédiger des scripts d'approche DM/Email personnalisés pour engager des créateurs TikTok/Insta (taux de réponse visé : 80%).
-3. Adapte le ton selon le projet (Shop Coussins, Ebook ou nouveau winner).
-""",
-
-    "offres-et-bundles": """Rôle : Expert Mondial en Structuration d'Offres Irrésistibles ($100M Offers - Alex Hormozi).
-Objectif : Transformer le produit en un pack irrésistible pour maximiser le panier moyen (AOV).
-Directives NotebookLM :
-- Toujours structurer en 3 niveaux : Offre Solo (entrée), Pack Duo Couple (Best-seller recommandé avec 20% de remise), Pack Famille / Confort Ultime (Panier Max).
-- Empiler des bonus perçus à haute valeur et coût nul (guides numériques, garanties 30 nuits d'essai, livraison express VIP).
-- Rédiger la garantie « Inversion du risque » (Zéro risque pour le client).
-""",
-
-    "emails-et-sms": """Rôle : Stratège E-mail & SMS Marketing (Klaviyo / SMSBump).
-Directives :
-- SMS : Moins de 160 caractères, ultra percutant, lien court, sentiment d'urgence.
-- E-mails : Objet à fort taux d'ouverture (> 45%), accroche narrative, bénéfice émotionnel, bouton CTA bien mis en évidence.
-- Séquences : Abandon de panier (H+1, H+24, H+48), Bienvenue, Relance post-achat / Upsell.
-""",
-
-    "strategie-marketing": """Rôle : Directeur Stratégique & Architecte Scaling 10k€ - 50k€/mois.
-Directives NotebookLM :
-- Analyse omnicanale (Meta + TikTok + Google SEO/PMax + Email).
-- Stratégie d'expansion de catalogue et rétention client.
-- Optimisation du taux de conversion (CRO) de la boutique Shopify.
-""",
-
-    "mine-avis-amazon": """Rôle : Espion Industriel & Exploiteur de Faiblesses Concurrentes.
-Directives :
-- Analyse des avis 1 et 2 étoiles des leaders/concurrents pour identifier les frustrations majeures des clients.
-- Transformation de ces défauts en arguments marketing majeurs pour nos produits.
-""",
-
-    "espionnage-pubs-tiktok-meta": """Rôle : Rétro-Ingénieur de Publicités Virales.
-Directives :
-- Analyse de la vidéo/image concurrente.
-- Décomposition du Hook et de la structure persuasive.
-- Réécriture de 3 déclinaisons originales pour nos boutiques.
-""",
-
-    "demineur-sav-objections": """Rôle : Négociateur d'Élite & Démineur d'Objections Clients.
-Directives :
-- Traitement bienveillant, commercial et ultra convaincant des doutes clients (délais de livraison, efficacité, retours, garantie).
-- Transformer les hésitations en commandes fermes.
-""",
-
-    "demarchage-b2b-gros": """Rôle : Responsable Grands Comptes & Ventes en Gros.
-Directives :
-- Rédiger des propositions de vente groupée (kinés, ostéopathes, entreprises, comités) pour écouler des volumes de 20 à 100 pièces par commande sans publicité.
-""",
-
-    "rapport-du-matin": """Rôle : Tableau de Bord Exécutif Quotidien.
-Directives :
-- Synthèse des priorités de la journée, état des chantiers en cours, opportunités de la semaine et plan d'action immédiat.
-""",
-
-    "brainstorming-general": """Rôle : Sparring-Partner Stratégique & Générateur d'Idées Business.
-Directives :
-- Réflexion libre, challenge des idées, exploration de nouveaux marchés et opportunités de croissance rapide.
-""",
-
-    "vocaux-et-notes": """Rôle : Secrétaire Général & Enregistreur de Contexte Projet.
-Directives :
-- Écouter attentivement le vocal ou la note de Nader.
-- Retranscrire l'idée clé.
-- Enregistrer cette note dans la mémoire dédiée au projet (Coussins ou Ebook).
-- Si une action concrète pour l'ordinateur est mentionnée, l'envoyer directement dans 📋-a-faire-sur-le-mac !
+    "espionnage-pubs-tiktok-meta": """Rôle : Analyste Publicitaire & Espionnage TikTok / Meta Ads.
+Objectif : Décortiquer les meilleures publicités e-commerce scalées en France et à l'international.
 """
 }
 
-# Bot Setup
-intents = discord.Intents.default()
-intents.message_content = True
-intents.guilds = True
-
-bot = commands.Bot(command_prefix="!", intents=intents)
-
-async def send_smart_chunks(destination, text: str):
-    """Découpe intelligemment les longs messages Discord sans couper les mots ni les phrases."""
+async def send_smart_chunks(destination, text, max_len=1900):
     if not text:
         return
-    
-    if len(text) <= 1950:
-        if hasattr(destination, "reply"):
-            try:
-                await destination.reply(text)
-                return
-            except Exception:
-                pass
-        target = destination.channel if hasattr(destination, "channel") else destination
-        await target.send(text)
-        return
-
-    # Découpage intelligent par lignes / sections
-    lines = text.split("\n")
+    lines = text.split("
+")
     current_chunk = ""
-    first = True
-    
     for line in lines:
-        if len(current_chunk) + len(line) + 1 > 1900:
+        if len(current_chunk) + len(line) + 1 > max_len:
             if current_chunk.strip():
-                if first and hasattr(destination, "reply"):
+                if hasattr(destination, "reply"):
                     try:
                         await destination.reply(current_chunk)
-                        first = False
                     except Exception:
-                        target = destination.channel if hasattr(destination, "channel") else destination
-                        await target.send(current_chunk)
-                        first = False
+                        await destination.channel.send(current_chunk)
                 else:
                     target = destination.channel if hasattr(destination, "channel") else destination
                     await target.send(current_chunk)
                 await asyncio.sleep(0.6)
-            current_chunk = line + "\n"
+            current_chunk = line + "
+"
         else:
-            current_chunk += line + "\n"
+            current_chunk += line + "
+"
             
     if current_chunk.strip():
-        target = destination.channel if hasattr(destination, "channel") else destination
-        await target.send(current_chunk)
+        if hasattr(destination, "reply"):
+            try:
+                await destination.reply(current_chunk)
+            except Exception:
+                await destination.channel.send(current_chunk)
+        else:
+            target = destination.channel if hasattr(destination, "channel") else destination
+            await target.send(current_chunk)
 
 async def ask_gemini(prompt, media_parts=None, channel_name="general", category_name=""):
-    models_to_try = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
+    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
     
-    # Load shared memory context
     mem = load_shared_memory()
-    projects_context = f"\n\n--- MÉMOIRE ACTIVE DES PROJETS DE NADER ---\n"
+    projects_context = f"
+
+--- MÉMOIRE ACTIVE DES PROJETS DE NADER ---
+"
     for p_k, p_v in mem.get("projects", {}).items():
-        notes_str = "\n".join([f"- [{n.get('date')}] {n.get('content')}" for n in p_v.get("notes", [])[-5:]])
-        projects_context += f"• Projet {p_v.get('name')} (Cible: {p_v.get('target')}):\n{notes_str or 'Aucune note récente.'}\n"
+        notes_str = "
+".join([f"- [{n.get('date')}] {n.get('content')}" for n in p_v.get("notes", [])[-5:]])
+        projects_context += f"• Projet {p_v.get('name')} (Cible: {p_v.get('target')}):
+{notes_str or 'Aucune note récente.'}
+"
     
-    # Base instructions
-    system_instructions = PROMPTS["global_system"] + projects_context
+    system_instructions = PROMPTS.get("global_system", "") + projects_context
     
-    # Inject channel-specific prompt
     matched_prompt = ""
     for key, p in PROMPTS.items():
         if key in channel_name:
@@ -280,12 +192,18 @@ async def ask_gemini(prompt, media_parts=None, channel_name="general", category_
             break
     
     if matched_prompt:
-        system_instructions += "\n\n--- RÔLE SPÉCIFIQUE DU SALON #" + channel_name + " ---\n" + matched_prompt
+        system_instructions += "
 
-    # For QG channels, inject relevant NotebookLM 100 sources knowledge
+--- RÔLE SPÉCIFIQUE DU SALON #" + channel_name + " ---
+" + matched_prompt
+
     notebook_knowledge = get_notebooklm_knowledge()
-    if notebook_knowledge and ("PILOTAGE" in category_name.upper() or "QG" in category_name.upper() or "notebook" in channel_name):
-        system_instructions += f"\n\n--- EXTRAIT DU CARNET NOTEBOOKLM (100 SOURCES E-COMMERCE) ---\n{notebook_knowledge[:35000]}\n--- FIN NOTEBOOKLM ---"
+    if notebook_knowledge and ("PILOTAGE" in category_name.upper() or "QG" in category_name.upper() or "notebook" in channel_name or "chasse" in channel_name):
+        system_instructions += f"
+
+--- EXTRAIT DU CARNET NOTEBOOKLM (100 SOURCES E-COMMERCE) ---
+{notebook_knowledge[:35000]}
+--- FIN NOTEBOOKLM ---"
             
     contents = []
     if media_parts:
@@ -318,21 +236,18 @@ LAST_DAILY_HUNT_FILE = os.path.join(SHARED_DIR, "last_daily_hunt.txt")
 async def daily_product_hunt():
     try:
         await bot.wait_until_ready()
-        # Check Paris time (UTC+2 in summer)
         now_utc = datetime.datetime.now(datetime.timezone.utc)
-        now_paris = now_utc + datetime.timedelta(hours=2) # Paris summer time
+        now_paris = now_utc + datetime.timedelta(hours=2)
         today_str = now_paris.strftime("%Y-%m-%d")
         
-        # Only run at 06:00 AM Paris time (between 06:00 and 06:59)
         if now_paris.hour != 6:
             return
             
-        # Check if already sent today
         if os.path.exists(LAST_DAILY_HUNT_FILE):
             with open(LAST_DAILY_HUNT_FILE, "r") as f:
                 last_sent = f.read().strip()
                 if last_sent == today_str:
-                    return # Already sent today!
+                    return
                     
         guild = bot.get_guild(GUILD_ID)
         if not guild:
@@ -342,47 +257,37 @@ async def daily_product_hunt():
         rapport_channel = discord.utils.get(guild.text_channels, name="🌅-rapport-du-matin")
         spy_channel = discord.utils.get(guild.text_channels, name="🕵️-espionnage-pubs-tiktok-meta")
         
-        # 1. 5 Winners du jour (sans répétition)
         winners_dossier = await generate_daily_winning_products(count=5)
-        header = f"🌅 **RADAR DU MATIN ({now_paris.strftime('%d/%m/%Y')} - 06:00) : 5 WINNERS VALIDÉS** 🎯\n\n"
+        header = f"🌅 **RADAR DU MATIN ({now_paris.strftime('%d/%m/%Y')} - 06:00) : 5 WINNERS VALIDÉS** 🎯
+
+"
         full_msg = header + winners_dossier
         
         if chasse_channel:
             await send_smart_chunks(chasse_channel, full_msg)
             
-        # 2. Espionnage Publicitaire Quotidien
         if spy_channel:
             spy_dossier = await generate_daily_creative_spy()
-            spy_header = f"🕵️ **RADAR CRÉATIVES ADS DU MATIN ({now_paris.strftime('%d/%m/%Y')} - 06:00) : TOP 3 PUBS SCALÉES** 🎬\n\n"
+            spy_header = f"🕵️ **RADAR CRÉATIVES ADS DU MATIN ({now_paris.strftime('%d/%m/%Y')} - 06:00) : TOP 3 PUBS SCALÉES** 🎬
+
+"
             await send_smart_chunks(spy_channel, spy_header + spy_dossier)
                     
         if rapport_channel:
-            await rapport_channel.send(f"📊 **RADAR DU MATIN :**\n• Tes 5 produits gagnants du jour sont prêts dans {chasse_channel.mention if chasse_channel else '#🎯-chasse-produits-winners'} !\n• Tes 3 créatives/hooks à copier sont dans {spy_channel.mention if spy_channel else '#🕵️-espionnage-pubs-tiktok-meta'} !")
+            await rapport_channel.send(f"📊 **RADAR DU MATIN :**
+• Tes 5 produits gagnants du jour sont prêts dans {chasse_channel.mention if chasse_channel else '#🎯-chasse-produits-winners'} !
+• Tes 3 créatives/hooks à copier sont dans {spy_channel.mention if spy_channel else '#🕵️-espionnage-pubs-tiktok-meta'} !")
             
         with open(LAST_DAILY_HUNT_FILE, "w") as f:
             f.write(today_str)
-            
-        print(f"✅ Daily winning products & creative spy generated & sent to Discord for {today_str}!")
     except Exception as e:
         print(f"Error in daily_product_hunt: {e}")
-
-@tasks.loop(minutes=8)
-async def keep_alive_ping():
-    try:
-        import aiohttp
-        async with aiohttp.ClientSession() as session:
-            async with session.get("https://bot-qg-discord.onrender.com/health", timeout=15) as resp:
-                print(f"🔄 Self Keep-Alive Ping: HTTP {resp.status}")
-    except Exception as e:
-        print(f"Self ping error (normal during boot): {e}")
 
 @bot.event
 async def on_ready():
     print(f"👑 Mon Associé IA is ONLINE & CONNECTED as {bot.user} (ID: {bot.user.id})")
     if not daily_product_hunt.is_running():
         daily_product_hunt.start()
-    if not keep_alive_ping.is_running():
-        keep_alive_ping.start()
 
 @bot.event
 async def on_message(message):
@@ -422,7 +327,6 @@ async def on_message(message):
                         tmp_path = tmp_file.name
                     temp_files_to_cleanup.append(tmp_path)
                     
-                    # Upload via Gemini File API pour analyse vidéo multimodale complète
                     uploaded_video = await asyncio.to_thread(genai.upload_file, tmp_path, mime_type=mime)
                     while uploaded_video.state.name == "PROCESSING":
                         await asyncio.sleep(2)
@@ -434,7 +338,6 @@ async def on_message(message):
                     if not user_text:
                         user_text = "Analyse cette vidéo publicitaire : décortique le Hook visuel (0-3s), le Hook verbal, la démonstration produit, le CTA et réécris 3 versions françaises ultra-performantes adaptées à notre marque."
 
-        # Enrichissement automatique avec les liens Web / Facebook Ads / TikTok
         if user_text:
             user_text, _ = await enrich_prompt_with_urls(user_text)
 
@@ -444,84 +347,140 @@ async def on_message(message):
         channel_name = message.channel.name
         category_name = message.channel.category.name if message.channel.category else ""
         
+        # Récupération de l'historique récent du salon
+        history_context = ""
+        try:
+            history_msgs = []
+            async for hist in message.channel.history(limit=6):
+                if hist.id != message.id and hist.content:
+                    sender = "Nader" if not hist.author.bot else "Associé IA"
+                    history_msgs.append(f"[{sender}]: {hist.content[:400]}")
+            if history_msgs:
+                history_msgs.reverse()
+                history_context = "
+--- HISTORIQUE RÉCENT DU SALON (#" + channel_name + ") ---
+" + "
+".join(history_msgs) + "
+------------------------------------------------
+"
+        except Exception:
+            pass
+
+        u_lower = user_text.lower()
+        response_text = ""
+
         # 1. Project Specific Notes Recording
         if "vocaux-et-notes" in channel_name:
             async with message.channel.typing():
-                response_text = await ask_gemini(user_text, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
+                enhanced_prompt = f"{history_context}
+
+Message de Nader : {user_text}" if history_context else user_text
+                response_text = await ask_gemini(enhanced_prompt, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
                 
-                # Save into the corresponding project memory
                 project_key = "coussins" if "COUSSINS" in category_name.upper() else "ebook_handicap" if "EBOOK" in category_name.upper() else "general"
                 append_project_note(project_key, user_text if not is_voice else response_text[:200], is_voice=is_voice)
-                
-                # If task for Mac mentioned
-                if "mac" in user_text.lower() or "à faire" in user_text.lower():
-                    task_summary = response_text.split("\n")[0][:120] if response_text else user_text[:120]
-                    append_mac_task(task_summary, category=f"{category_name} - {channel_name}")
-                    guild = message.guild
-                    mac_channel = discord.utils.get(guild.text_channels, name="📋-a-faire-sur-le-mac")
-                    if mac_channel:
-                        task_embed = discord.Embed(
-                            title="📌 NOUVELLE ACTION SYNCHRONISÉE POUR LE MAC",
-                            description=f"**Projet :** `{category_name}`\n**Action :** {task_summary}",
-                            color=discord.Color.gold()
-                        )
-                        await mac_channel.send(embed=task_embed)
-        
+
         # 2. Direct NotebookLM Channel
         elif "notebook" in channel_name:
             async with message.channel.typing():
                 response_text = await query_live_notebooklm(user_text)
                 if not response_text or len(response_text) < 20:
-                    response_text = await ask_gemini(user_text, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
-                response_text = f"🧠 **NOTEBOOKLM (100 SOURCES E-COMMERCE) :**\n\n{response_text}"
+                    enhanced_prompt = f"{history_context}
 
-        # 3. Product Hunter Channel (On-demand)
+Question de Nader : {user_text}" if history_context else user_text
+                    response_text = await ask_gemini(enhanced_prompt, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
+                response_text = f"🧠 **NOTEBOOKLM (100 SOURCES E-COMMERCE) :**
+
+{response_text}"
+
+        # 3. Product Hunter Channel (Smart Intent Routing)
         elif "chasse-produits" in channel_name:
             async with message.channel.typing():
-                # Check if user specified a niche or asked general hunt
-                winners_dossier = await generate_daily_winning_products(count=5, specific_niche=user_text)
-                response_text = f"🎯 **RADAR WINNERS VALIDÉS (MÉTHODE FOCUS & ZEZINHO / FRANCE) :**\n\n{winners_dossier}"
+                is_explicit_hunt = any(k in u_lower for k in ["cherche 5", "trouve 5", "nouveaux produits", "chasse des produits", "5 winners", "top 5 winners", "radar du jour", "propose 5"]) and not any(k in u_lower for k in ["développe", "analyse", "détaille", "ce produit", "produit #", "sheet", "tableau", "transfère", "créas", "offre", "prix"])
                 
-        # 4. Creative Spy Channel (On-demand)
+                if is_explicit_hunt:
+                    winners_dossier = await generate_daily_winning_products(count=5, specific_niche=user_text)
+                    response_text = f"🎯 **RADAR WINNERS VALIDÉS (MÉTHODE FOCUS & ZEZINHO / FRANCE) :**
+
+{winners_dossier}"
+                else:
+                    # Nader demande de développer un produit spécifique ou d'analyser !
+                    enhanced_prompt = f"""Tu es dans le salon #chasse-produits-winners.
+{history_context}
+
+DEMANDE SPÉCIFIQUE DE NADER :
+{user_text}
+
+DIRECTIVES STRICTES :
+- Ne génère SURTOUT PAS une nouvelle liste de 5 produits !
+- Concentre-toi à 100% sur le produit dont parle Nader (ou le produit cité dans l'historique ci-dessus).
+- Développe ce produit de manière chirurgicale :
+  1. 🎯 Structure de l'Offre M (Pack Solo vs Pack Duo avec pricing rentable et markup > x3.5)
+  2. 🎬 3 Angles de Créatives TikTok / Meta Ads avec Hooks percutants
+  3. 🛍️ Copywriting de la Fiche Produit (Bénéfices viscéraux, caractéristiques, réassurance)
+  4. 📊 Synthèse financière pour Google Sheet
+"""
+                    response_text = await ask_gemini(enhanced_prompt, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
+
+        # 4. Creative Spy Channel
         elif "espionnage" in channel_name or "tiktok-meta" in channel_name:
             async with message.channel.typing():
-                if media_parts or "http" in user_text:
-                    response_text = await ask_gemini(user_text, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
+                if media_parts or "http" in user_text or any(k in u_lower for k in ["analyse", "détaille", "réécris", "hook", "script", "développe"]):
+                    enhanced_prompt = f"{history_context}
+
+Demande de Nader : {user_text}" if history_context else user_text
+                    response_text = await ask_gemini(enhanced_prompt, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
                 else:
                     spy_dossier = await generate_daily_creative_spy(specific_niche=user_text)
-                    response_text = f"🕵️ **DOSSIER ESPIONNAGE CRÉATIVES ADS (TIKTOK & META FRANCE) :**\n\n{spy_dossier}"
-                
+                    response_text = f"🕵️ **DOSSIER ESPIONNAGE CRÉATIVES ADS (TIKTOK & META FRANCE) :**
+
+{spy_dossier}"
+
         # 5. All other QG and General channels
         else:
             async with message.channel.typing():
-                response_text = await ask_gemini(user_text, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
-                
-            # Google Sheet bridge extraction
-            if "sheet" in user_text.lower() or "tableau" in user_text.lower():
-                product_dict = parse_product_dossier_to_dict(response_text if len(response_text) > 100 else user_text)
-                push_res = push_to_google_sheet(product_dict)
-                if push_res.get("success"):
-                    response_text += f"\n\n📊 **GOOGLE SHEETS :** {push_res.get('message')}"
-                elif "GOOGLE_SHEET_WEBHOOK_URL" not in os.environ or not os.environ.get("GOOGLE_SHEET_WEBHOOK_URL"):
-                    response_text += f"\n\n💡 *[PONT GOOGLE SHEETS PRÊT]* : Dès que tu ajoutes l'URL de ton Webhook Google Sheet, ce produit y sera injecté avec ses 36 colonnes !"
+                enhanced_prompt = f"{history_context}
 
-            # Mac task extraction if needed
-            if "tâche mac" in user_text.lower() or "à faire sur le mac" in user_text.lower() or "a-faire-sur-le-mac" in channel_name:
-                task_summary = response_text.split("\n")[0][:120] if response_text else user_text[:120]
-                append_mac_task(task_summary, category=channel_name)
-                guild = message.guild
-                mac_channel = discord.utils.get(guild.text_channels, name="📋-a-faire-sur-le-mac")
-                if mac_channel and mac_channel.id != message.channel.id:
-                    task_embed = discord.Embed(
-                        title="📌 NOUVELLE ACTION SYNCHRONISÉE POUR LE MAC",
-                        description=f"**Source :** Salon `#{channel_name}`\n**Action :** {task_summary}",
-                        color=discord.Color.green()
-                    )
-                    await mac_channel.send(embed=task_embed)
+Demande de Nader : {user_text}" if history_context else user_text
+                response_text = await ask_gemini(enhanced_prompt, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
+
+        # PONT GOOGLE SHEETS GLOBAL (Fonctionne dans TOUS les salons)
+        if any(k in u_lower for k in ["sheet", "tableau", "transfèr", "export", "enregistr", "injecte dans le sheet", "ajoute au sheet"]):
+            context_for_sheet = (response_text + "
+
+" + history_context + "
+
+" + user_text)
+            product_dict = parse_product_dossier_to_dict(context_for_sheet)
+            push_res = push_to_google_sheet(product_dict)
+            if push_res.get("success"):
+                response_text += f"
+
+📊 **GOOGLE SHEETS :** {push_res.get('message')}"
+            else:
+                response_text += f"
+
+📊 **GOOGLE SHEETS :** {push_res.get('message')}"
+
+        # Tâche Mac globale
+        if "tâche mac" in u_lower or "à faire sur le mac" in u_lower or "a-faire-sur-le-mac" in channel_name:
+            task_summary = response_text.split("
+")[0][:120] if response_text else user_text[:120]
+            append_mac_task(task_summary, category=channel_name)
+            guild = message.guild
+            mac_channel = discord.utils.get(guild.text_channels, name="📋-a-faire-sur-le-mac")
+            if mac_channel and mac_channel.id != message.channel.id:
+                task_embed = discord.Embed(
+                    title="📌 NOUVELLE ACTION SYNCHRONISÉE POUR LE MAC",
+                    description=f"**Source :** Salon 
+**Action :** {task_summary}",
+                    color=discord.Color.green()
+                )
+                await mac_channel.send(embed=task_embed)
         
         # Log recent activity
         mem = load_shared_memory()
-        mem["recent_activities"].append({
+        mem.setdefault("recent_activities", []).append({
             "timestamp": datetime.datetime.now().isoformat(),
             "category": category_name,
             "channel": channel_name,
@@ -531,11 +490,10 @@ async def on_message(message):
         mem["recent_activities"] = mem["recent_activities"][-50:]
         save_shared_memory(mem)
         
-        # Reply with smart chunks
+        # Reply
         await send_smart_chunks(message, response_text)
 
     finally:
-        # Nettoyage des fichiers locaux et Gemini File API
         for tmp in temp_files_to_cleanup:
             try:
                 if os.path.exists(tmp):
