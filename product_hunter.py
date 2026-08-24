@@ -10,9 +10,25 @@ from trendtrack_client import get_live_trendtrack_summary, fetch_scaling_shops, 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
+import random
+
+NICHE_ROTATOR = [
+    "Santé, Ergonomie & Récupération physique (Cervicales, sciatique, fasciite, posture dynamique, micro-massage)",
+    "Maison, Rangement astucieux & Gain de place (Dressing, cuisine, buanderie, placards suspendus)",
+    "Sécurité & Accessoires habitacle Auto / Moto (Organisation ergonomique, pare-soleil thermique, maintien)",
+    "Animaux de compagnie & Bien-être anti-anxiété (Toilettage sans douleur, litière propre, griffes, brosses vapeur)",
+    "Bébés & Parentalité simplifiée (Sécurité maison, transition sommeil, repas autonomes sans dégât)",
+    "Beauté & Soins dermatologiques maison (Micro-courant, gua sha thermique, soin cuir chevelu, cils)",
+    "Bricolage malin & Outils multi-angles ergonomiques (Gabarits de découpe, serrage magnétique, ponçage)",
+    "Cuisine pratique & Conservation alimentaire (Sous-vide manuel, découpe express, décongélation rapide)",
+    "Outdoor, Randonnée & Voyage nomade (Accessoires ultra-légers, confort avion/train, étanchéité)",
+    "Organisation bureau & Accessoires nomades sans batterie (Support ergonomique ajustable, tapis thermique)"
+]
+
 async def generate_daily_winning_products(count=5, specific_niche=None):
     """
     Moteur de Sélection Ultime selon la méthode FOCUS & ZEZINHO (100 Sources NotebookLM) :
+    - Rotation dynamique sur 10 niches différentes à chaque génération pour 0 répétition.
     - Double Cadrage (Phase 0 & 1) : Markup >= x3.5, Poids < 1kg, 0 batterie/verre
     - Validation Demande & Concurrence (Phase 2) : Trends 5 ans, SEO 500-5000 / Viral CTR >1.2%, Meta FR 1-5 shops
     - Validation Financière (Phase 3) : Formule profit, Marge nette >= 20%, Profit >= 8-15€, Livraison FR < 10j
@@ -24,7 +40,16 @@ async def generate_daily_winning_products(count=5, specific_niche=None):
     trendtrack_data = get_live_trendtrack_summary()
     
     current_month = datetime.datetime.now().strftime("%B %Y")
-    niche_instruction = f"Niche ciblée par Nader : {specific_niche}" if specific_niche else "Niches à fort problème douloureux ou passion intense (Santé/Posture/Sommeil, Maison/Pratique/Organisation, Beauté/Soin/Bien-être, Sécurité/Auto, Bébés/Parentalité, Streetwear/Luxe structuré)"
+    
+    if specific_niche:
+        niche_instruction = f"Niche ciblée par Nader : {specific_niche}"
+    else:
+        sample_count = min(count, len(NICHE_ROTATOR))
+        selected_niches = random.sample(NICHE_ROTATOR, sample_count)
+        niche_instruction = "Tu DOIS OBLIGATOIREMENT attribuer à chaque winner une niche DIFFÉRENTE et NON RÉPÉTITIVE parmi ce tirage du jour :\n"
+        for idx, n_name in enumerate(selected_niches):
+            niche_instruction += f"• Winner #{idx+1} : Niche [{n_name}]\n"
+        niche_instruction += "\nINTERDICTION FORMELLE de ressortir les mêmes produits récurrents (ex: masque de sommeil 3D basique, cale siège auto standard ou correcteur de posture classique). Cherche des pépites innovantes et fraîches !"
     
     prompt = f"""Tu es le Directeur Chasse de Produits d'Élite & Expert E-commerce à 7 chiffres de Nader.
 Tu appliques STRICTEMENT ET SANS DÉVIATION la Méthode Complète Focus & Zezinho (issue de ses 100 sources NotebookLM).

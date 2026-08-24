@@ -10,6 +10,7 @@ import google.generativeai as genai
 import tempfile
 from notebooklm_bridge import query_live_notebooklm, get_notebooklm_knowledge
 from product_hunter import generate_daily_winning_products
+from creative_spy import generate_daily_creative_spy
 from sheets_bridge import parse_product_dossier_to_dict, push_to_google_sheet
 from web_fetcher import enrich_prompt_with_urls
 
@@ -339,21 +340,29 @@ async def daily_product_hunt():
         
         chasse_channel = discord.utils.get(guild.text_channels, name="🎯-chasse-produits-winners")
         rapport_channel = discord.utils.get(guild.text_channels, name="🌅-rapport-du-matin")
+        spy_channel = discord.utils.get(guild.text_channels, name="🕵️-espionnage-pubs-tiktok-meta")
         
+        # 1. 5 Winners du jour (sans répétition)
         winners_dossier = await generate_daily_winning_products(count=5)
         header = f"🌅 **RADAR DU MATIN ({now_paris.strftime('%d/%m/%Y')} - 06:00) : 5 WINNERS VALIDÉS** 🎯\n\n"
         full_msg = header + winners_dossier
         
         if chasse_channel:
             await send_smart_chunks(chasse_channel, full_msg)
+            
+        # 2. Espionnage Publicitaire Quotidien
+        if spy_channel:
+            spy_dossier = await generate_daily_creative_spy()
+            spy_header = f"🕵️ **RADAR CRÉATIVES ADS DU MATIN ({now_paris.strftime('%d/%m/%Y')} - 06:00) : TOP 3 PUBS SCALÉES** 🎬\n\n"
+            await send_smart_chunks(spy_channel, spy_header + spy_dossier)
                     
         if rapport_channel:
-            await rapport_channel.send(f"📊 **RADAR DU MATIN :** Tes 5 produits gagnants du jour sont prêts dans {chasse_channel.mention if chasse_channel else '#🎯-chasse-produits-winners'} !")
+            await rapport_channel.send(f"📊 **RADAR DU MATIN :**\n• Tes 5 produits gagnants du jour sont prêts dans {chasse_channel.mention if chasse_channel else '#🎯-chasse-produits-winners'} !\n• Tes 3 créatives/hooks à copier sont dans {spy_channel.mention if spy_channel else '#🕵️-espionnage-pubs-tiktok-meta'} !")
             
         with open(LAST_DAILY_HUNT_FILE, "w") as f:
             f.write(today_str)
             
-        print(f"✅ Daily winning products generated & sent to Discord for {today_str}!")
+        print(f"✅ Daily winning products & creative spy generated & sent to Discord for {today_str}!")
     except Exception as e:
         print(f"Error in daily_product_hunt: {e}")
 
@@ -473,7 +482,16 @@ async def on_message(message):
                 winners_dossier = await generate_daily_winning_products(count=5, specific_niche=user_text)
                 response_text = f"🎯 **RADAR WINNERS VALIDÉS (MÉTHODE FOCUS & ZEZINHO / FRANCE) :**\n\n{winners_dossier}"
                 
-        # 4. All other QG and General channels
+        # 4. Creative Spy Channel (On-demand)
+        elif "espionnage" in channel_name or "tiktok-meta" in channel_name:
+            async with message.channel.typing():
+                if media_parts or "http" in user_text:
+                    response_text = await ask_gemini(user_text, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
+                else:
+                    spy_dossier = await generate_daily_creative_spy(specific_niche=user_text)
+                    response_text = f"🕵️ **DOSSIER ESPIONNAGE CRÉATIVES ADS (TIKTOK & META FRANCE) :**\n\n{spy_dossier}"
+                
+        # 5. All other QG and General channels
         else:
             async with message.channel.typing():
                 response_text = await ask_gemini(user_text, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
