@@ -83,7 +83,7 @@ def push_to_google_sheet(product_dict):
     """
     Envoie la ligne formatée vers le Google Sheet via le Webhook direct.
     """
-    webhook_url = os.getenv("GOOGLE_SHEET_WEBHOOK_URL")
+    webhook_url = os.getenv("GOOGLE_SHEET_WEBHOOK_URL") or "https://script.google.com/macros/s/AKfycbxaGQSp1gIzw87YZ5bGDzuG6PlLpEoDF-612c86wXEQWml-T9ekliVfxtvafxyR6cVewQ/exec"
     if not webhook_url:
         return {
             "success": False,
