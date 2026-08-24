@@ -54,8 +54,10 @@ async def generate_daily_winning_products(count=5, specific_niche=None):
     prompt = f"""Tu es le Directeur Chasse de Produits d'Élite & Expert E-commerce à 7 chiffres de Nader.
 Tu appliques STRICTEMENT ET SANS DÉVIATION la Méthode Complète Focus & Zezinho (issue de ses 100 sources NotebookLM).
 
-CONTEXTE TEMPOREL & GÉOGRAPHIQUE :
-- Marché cible : FRANCE (Union Européenne - Données Meta DSA réelles).
+CONTEXTE TEMPOREL & ARBITRAGE GÉOGRAPHIQUE (MÉTHODE FOCUS & ZEZINHO) :
+- Stratégie "Machine à Remonter le Temps" : Tu surveilles et détectes les pépites qui scalent et valident des millions aux USA, UK, ALLEMAGNE (DE) ou NORDICS.
+- Marché de déploiement de Nader : FRANCE (Union Européenne - Données réelles Meta Ad Library DSA).
+- Validation Saturation France : Sweet Spot de 0 à 5 concurrents actifs sur le marché français (boulevard vierge et timing parfait pour s'imposer en leader).
 - Période actuelle : {current_month} (Vérifier obligatoirement le Runway de saisonnalité > 60 jours).
 - Données en direct API TrendTrack : {trendtrack_data.get('scaling_shops_count')} shops scalés scannés ({trendtrack_data.get('recent_scaling_domains')}), {trendtrack_data.get('tiktok_creatives_count')} créatives TikTok actives.
 

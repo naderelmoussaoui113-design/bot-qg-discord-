@@ -32,29 +32,37 @@ async def generate_daily_creative_spy(specific_niche=None):
     if scaling_shops:
         context_str += f"• Boutiques Shopify en hyper-croissance (>20k€/mois) : {json.dumps([s.get('domain') for s in scaling_shops if isinstance(s, dict)], ensure_ascii=False)}\n"
         
-    niche_focus = f"Focus demandé par Nader : {specific_niche}" if specific_niche else "Toutes niches e-commerce rentables en France (Problème douloureux, Wow Effect, Cadeau émotionnel, Confort)"
+    niche_focus = f"Focus demandé par Nader : {specific_niche}" if specific_niche else "Toutes niches e-commerce rentables (Problème viscéral, Wow Effect 3s, Santé/Ergonomie, Maison/Pratique, Auto, Animaux, Bébés)"
 
     prompt = f"""Tu es le Directeur Créatif Ads & Expert en Vidéos Publicitaires TikTok / Meta Ads à 7 chiffres de Nader.
-Tu appliques les stratégies publicitaires d'élite de la méthode Focus & Zezinho (NotebookLM).
+Tu appliques STRICTEMENT la stratégie d'Arbitrage Géographique "Machine à Remonter le Temps" de la méthode Focus & Zezinho (NotebookLM) :
 
-DONNÉES MARCHÉ EN DIRECT (TrendTrack & Meta/TikTok EU) :
+STRATÉGIE FOCUS & ZEZINHO D'ARBITRAGE GÉOGRAPHIQUE :
+1. Tu espionnes en priorité les marchés précurseurs qui ont 3 à 6 mois d'avance : USA, UK, ALLEMAGNE (DE) et TIKTOK GLOBAL.
+2. Tu repères les créatives virales qui scalent actuellement à plusieurs dizaines de milliers de dollars/euros par jour là-bas.
+3. Tu vérifies la saturation sur le marché FRANCE (Timing parfait : 0 à 5 concurrents actifs sur la France).
+4. Tu réécris et adaptes les Hooks et les Scripts en français natif percutant (avec les codes culturels et la psychologie d'achat française).
+
+DONNÉES MARCHÉ EN DIRECT (TrendTrack USA/UK/EU & TikTok Global) :
 {context_str}
 
 {niche_focus}
 
 MISSION :
-Génère le dossier d'espionnage publicitaire du jour : analyse les 3 MEILLEURES CRÉATIVES PUBLICITAIRES VIRALES qui génèrent le plus de ventes en France actuellement.
+Génère le dossier d'espionnage publicitaire du jour : analyse les 3 MEILLEURES CRÉATIVES PUBLICITAIRES VIRALES qui cartonnent aux USA / UK / EUROPE et fournis leur déclinaison prête à lancer et dominer le marché français.
 
 Pour chacune des 3 publicités, fournis une structure chirurgicale :
 
 ═══════════════════════════════════════════════════════════════════════════════
 🎬 CRÉATIVE WINNER #[1-3] : [NOM DU PRODUIT / ANGLE PUBLICITAIRE]
+Marché d'origine : [USA / UK / DE / Global] ➔ Cible d'arbitrage : FRANCE (Boulevard sans concurrence)
 Niche : [Niche] | Format : [TikTok Ads / Reels Meta] | Durée idéale : 25-35s
 ═══════════════════════════════════════════════════════════════════════════════
 
 1. ⚡ LE HOOK D'ARRÊT DE SCROLL (0-3 SECONDES) :
-- Hook Visuel : [Description précise de l'action choquante, inattendue ou du mouvement caméra]
-- Hook Verbal (Mot à mot) : "[Phrase d'accroche exacte en français parlé, sans bla-bla]"
+- Hook Visuel : [Description précise de l'action choquante, inattendue ou du mouvement caméra utilisé aux USA/EU]
+- Hook Verbal US/Source : "[Phrase d'accroche originale en anglais/source]"
+- Hook Verbal ADAPTÉ FRANCE (Mot à mot) : "[Phrase d'accroche percutante en français parlé naturel, sans bla-bla]"
 - Texte à l'écran (Overlay) : "[Texte court en gros caractère contrasté]"
 - Déclencheur psychologique : [Curiosité / Peur de rater / Douleur aiguë / Comparaison Avant-Après]
 
