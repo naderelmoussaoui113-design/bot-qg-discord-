@@ -500,17 +500,8 @@ async def main():
     port = await run_web_server()
     asyncio.create_task(anti_sleep_loop(port))
     
-    tasks_to_run = [
-        start_telegram_polling(
-            ask_gemini,
-            push_to_sheet_func=push_to_google_sheet,
-            parse_product_func=parse_product_dossier_to_dict
-        )
-    ]
     if DISCORD_BOT_TOKEN:
-        tasks_to_run.append(bot.start(DISCORD_BOT_TOKEN))
-        
-    await asyncio.gather(*tasks_to_run)
+        await bot.start(DISCORD_BOT_TOKEN)
 
 if __name__ == "__main__":
     asyncio.run(main())
