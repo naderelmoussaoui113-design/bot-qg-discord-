@@ -13,7 +13,6 @@ from product_hunter import generate_daily_winning_products
 from creative_spy import generate_daily_creative_spy
 from sheets_bridge import parse_product_dossier_to_dict, push_to_google_sheet
 from web_fetcher import enrich_prompt_with_urls
-from telegram_bridge import start_telegram_polling
 
 import base64
 
@@ -497,11 +496,15 @@ async def anti_sleep_loop(port):
         await asyncio.sleep(480)
 
 async def main():
+    from jarvis_agent import run_telegram_jarvis
     port = await run_web_server()
     asyncio.create_task(anti_sleep_loop(port))
     
+    tasks = [run_telegram_jarvis()]
     if DISCORD_BOT_TOKEN:
-        await bot.start(DISCORD_BOT_TOKEN)
+        tasks.append(bot.start(DISCORD_BOT_TOKEN))
+        
+    await asyncio.gather(*tasks)
 
 if __name__ == "__main__":
     asyncio.run(main())
