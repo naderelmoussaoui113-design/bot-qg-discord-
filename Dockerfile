@@ -21,4 +21,4 @@ RUN playwright install chromium --with-deps || true
 
 COPY . .
 
-CMD ["python", "agent_core.py"]
+CMD ["python", "jarvis_agent.py"]
