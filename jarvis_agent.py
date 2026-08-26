@@ -10,6 +10,7 @@ import urllib.parse
 import re
 import datetime
 import aiohttp
+from aiohttp import web
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -287,7 +288,7 @@ async def run_telegram_jarvis():
 
 # --- ANTI-SLEEP WEB SERVER ---
 async def handle_ping(request):
-    return aiohttp.web.json_response({
+    return web.json_response({
         "status": "online",
         "agent": "JARVIS Autonomous Cloud Agent",
         "owner": "Nader (Witcher)",
@@ -295,14 +296,14 @@ async def handle_ping(request):
     })
 
 async def run_web_server():
-    app = aiohttp.web.Application()
+    app = web.Application()
     app.router.add_get("/", handle_ping)
     app.router.add_get("/ping", handle_ping)
     app.router.add_get("/health", handle_ping)
-    runner = aiohttp.web.AppRunner(app)
+    runner = web.AppRunner(app)
     await runner.setup()
     port = int(os.getenv("PORT", 10000))
-    site = aiohttp.web.TCPSite(runner, "0.0.0.0", port)
+    site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
     logging.info(f"🌐 [JARVIS Server] En ecoute sur le port {port}")
     return port
