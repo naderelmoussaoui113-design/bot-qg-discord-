@@ -142,7 +142,9 @@ MISSIONS & REGLES FONDAMENTALES :
    - Methodologie marketing : Offre $100M d Alex Hormozi (Offre irresistible, Solo vs Duo, elimination totale du risque, garantie 30 jours, hooks emotionnels 0-3s).
 4. TONE & STYLE : Percutant, direct, proactif, ultra-competent, sans bavardage inutile. Tu reponds en francais avec une structure claire et des emojis professionnels."""
 
-def get_jarvis_model(model_name="gemini-3.7-flash"):
+ACTIVE_MODEL = "gemini-3.5-flash-lite"
+
+def get_jarvis_model(model_name="gemini-3.5-flash-lite"):
     return genai.GenerativeModel(
         model_name=model_name,
         system_instruction=SYSTEM_PROMPT,
@@ -150,21 +152,25 @@ def get_jarvis_model(model_name="gemini-3.7-flash"):
     )
 
 async def ask_jarvis(user_id, prompt_or_parts):
-    models_to_try = ["gemini-3.7-flash", "gemini-flash-latest", "gemini-3.5-flash-lite", "gemini-3.6-flash"]
-    last_err = None
+    global ACTIVE_MODEL
+    models_to_try = ["gemini-3.5-flash-lite", "gemini-3.7-flash", "gemini-flash-latest", "gemini-3.6-flash"]
+    if ACTIVE_MODEL in models_to_try:
+        models_to_try.remove(ACTIVE_MODEL)
+        models_to_try.insert(0, ACTIVE_MODEL)
 
+    last_err = None
     for m_name in models_to_try:
         try:
             model = get_jarvis_model(m_name)
             chat = model.start_chat(enable_automatic_function_calling=True)
             res = chat.send_message(prompt_or_parts)
             if res and res.text:
+                ACTIVE_MODEL = m_name
                 return res.text
         except Exception as e:
             err_str = str(e)
-            logging.warning(f"⚠️ [JARVIS] Modele {m_name} en echec: {err_str[:120]}... Essai du suivant.")
+            logging.warning(f"⚠️ [JARVIS] Modele {m_name} en echec ({err_str[:80]})... Bascule immediate.")
             last_err = e
-            await asyncio.sleep(1)
             continue
     return f"⚠️ Mon commandant, une erreur temporaire est survenue : {last_err}"
 
