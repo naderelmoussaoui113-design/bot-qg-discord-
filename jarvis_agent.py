@@ -142,9 +142,9 @@ MISSIONS & REGLES FONDAMENTALES :
    - Methodologie marketing : Offre $100M d Alex Hormozi (Offre irresistible, Solo vs Duo, elimination totale du risque, garantie 30 jours, hooks emotionnels 0-3s).
 4. TONE & STYLE : Percutant, direct, proactif, ultra-competent, sans bavardage inutile. Tu reponds en francais avec une structure claire et des emojis professionnels."""
 
-ACTIVE_MODEL = "gemini-3.5-flash-lite"
+PRIMARY_MODEL = "gemini-3.7-flash"
 
-def get_jarvis_model(model_name="gemini-3.5-flash-lite"):
+def get_jarvis_model(model_name="gemini-3.7-flash"):
     return genai.GenerativeModel(
         model_name=model_name,
         system_instruction=SYSTEM_PROMPT,
@@ -152,11 +152,8 @@ def get_jarvis_model(model_name="gemini-3.5-flash-lite"):
     )
 
 async def ask_jarvis(user_id, prompt_or_parts):
-    global ACTIVE_MODEL
-    models_to_try = ["gemini-3.5-flash-lite", "gemini-3.7-flash", "gemini-flash-latest", "gemini-3.6-flash"]
-    if ACTIVE_MODEL in models_to_try:
-        models_to_try.remove(ACTIVE_MODEL)
-        models_to_try.insert(0, ACTIVE_MODEL)
+    # Ordre de priorité absolu : 3.7 d'abord, puis bascule automatique sur les modèles de secours
+    models_to_try = ["gemini-3.7-flash", "gemini-3.5-flash-lite", "gemini-flash-latest"]
 
     last_err = None
     for m_name in models_to_try:
@@ -165,14 +162,18 @@ async def ask_jarvis(user_id, prompt_or_parts):
             chat = model.start_chat(enable_automatic_function_calling=True)
             res = chat.send_message(prompt_or_parts)
             if res and res.text:
-                ACTIVE_MODEL = m_name
+                if m_name != "gemini-3.7-flash":
+                    logging.info(f"ℹ️ [JARVIS] Réponse assurée via le modèle de secours {m_name} (quota 3.7 épuisé).")
                 return res.text
         except Exception as e:
             err_str = str(e)
-            logging.warning(f"⚠️ [JARVIS] Modele {m_name} en echec ({err_str[:80]})... Bascule immediate.")
+            if "429" in err_str or "quota" in err_str.lower() or "ResourceExhausted" in err_str:
+                logging.warning(f"⚠️ [JARVIS] Quota épuisé sur {m_name}. Bascule automatique et instantanée sur le modèle suivant...")
+            else:
+                logging.warning(f"⚠️ [JARVIS] Erreur sur {m_name}: {err_str[:80]}... Bascule sur le secours.")
             last_err = e
             continue
-    return f"⚠️ Mon commandant, une erreur temporaire est survenue : {last_err}"
+    return f"⚠️ Mon commandant, tous les modèles ont été sollicités : {last_err}"
 
 async def send_telegram_chunks(session, chat_id, text):
     limit = 3900
