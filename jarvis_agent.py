@@ -298,6 +298,7 @@ async def run_web_server():
     app = aiohttp.web.Application()
     app.router.add_get("/", handle_ping)
     app.router.add_get("/ping", handle_ping)
+    app.router.add_get("/health", handle_ping)
     runner = aiohttp.web.AppRunner(app)
     await runner.setup()
     port = int(os.getenv("PORT", 10000))
