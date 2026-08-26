@@ -13,6 +13,7 @@ from product_hunter import generate_daily_winning_products
 from creative_spy import generate_daily_creative_spy
 from sheets_bridge import parse_product_dossier_to_dict, push_to_google_sheet
 from web_fetcher import enrich_prompt_with_urls
+from telegram_bridge import start_telegram_polling
 
 load_dotenv()
 
@@ -90,12 +91,13 @@ def append_mac_task(task_text, category="Général"):
         "task": task_text,
         "status": "pending"
     }
-    mem["mac_todo_queue".append(entry) if "mac_todo_queue" in mem else None]
+    if "mac_todo_queue" not in mem:
+        mem["mac_todo_queue"] = []
+    mem["mac_todo_queue"].append(entry)
     save_shared_memory(mem)
     
     with open(TASKS_FILE, "a", encoding="utf-8") as f:
-        f.write(f"- [ ] **[{entry['date']} - {category}]** {task_text}
-")
+        f.write(f"- [ ] **[{entry['date']} - {category}]** {task_text}\n")
 
 # Prompts by Channel / Function
 PROMPTS = {
@@ -137,8 +139,7 @@ Objectif : Décortiquer les meilleures publicités e-commerce scalées en France
 async def send_smart_chunks(destination, text, max_len=1900):
     if not text:
         return
-    lines = text.split("
-")
+    lines = text.split("\n")
     current_chunk = ""
     for line in lines:
         if len(current_chunk) + len(line) + 1 > max_len:
@@ -152,11 +153,9 @@ async def send_smart_chunks(destination, text, max_len=1900):
                     target = destination.channel if hasattr(destination, "channel") else destination
                     await target.send(current_chunk)
                 await asyncio.sleep(0.6)
-            current_chunk = line + "
-"
+            current_chunk = line + "\n"
         else:
-            current_chunk += line + "
-"
+            current_chunk += line + "\n"
             
     if current_chunk.strip():
         if hasattr(destination, "reply"):
@@ -169,19 +168,13 @@ async def send_smart_chunks(destination, text, max_len=1900):
             await target.send(current_chunk)
 
 async def ask_gemini(prompt, media_parts=None, channel_name="general", category_name=""):
-    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+    models_to_try = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-1.5-flash"]
     
     mem = load_shared_memory()
-    projects_context = f"
-
---- MÉMOIRE ACTIVE DES PROJETS DE NADER ---
-"
+    projects_context = "\n\n--- MÉMOIRE ACTIVE DES PROJETS DE NADER ---\n"
     for p_k, p_v in mem.get("projects", {}).items():
-        notes_str = "
-".join([f"- [{n.get('date')}] {n.get('content')}" for n in p_v.get("notes", [])[-5:]])
-        projects_context += f"• Projet {p_v.get('name')} (Cible: {p_v.get('target')}):
-{notes_str or 'Aucune note récente.'}
-"
+        notes_str = "\n".join([f"- [{n.get('date')}] {n.get('content')}" for n in p_v.get("notes", [])[-5:]])
+        projects_context += f"• Projet {p_v.get('name')} (Cible: {p_v.get('target')}):\n{notes_str or 'Aucune note récente.'}\n"
     
     system_instructions = PROMPTS.get("global_system", "") + projects_context
     
@@ -192,18 +185,15 @@ async def ask_gemini(prompt, media_parts=None, channel_name="general", category_
             break
     
     if matched_prompt:
-        system_instructions += "
-
---- RÔLE SPÉCIFIQUE DU SALON #" + channel_name + " ---
-" + matched_prompt
+        system_instructions += f"\n\n--- RÔLE SPÉCIFIQUE DU SALON #{channel_name} ---\n{matched_prompt}"
 
     notebook_knowledge = get_notebooklm_knowledge()
     if notebook_knowledge and ("PILOTAGE" in category_name.upper() or "QG" in category_name.upper() or "notebook" in channel_name or "chasse" in channel_name):
-        system_instructions += f"
+        system_instructions += f"""
 
 --- EXTRAIT DU CARNET NOTEBOOKLM (100 SOURCES E-COMMERCE) ---
 {notebook_knowledge[:35000]}
---- FIN NOTEBOOKLM ---"
+--- FIN NOTEBOOKLM ---"""
             
     contents = []
     if media_parts:
@@ -258,9 +248,7 @@ async def daily_product_hunt():
         spy_channel = discord.utils.get(guild.text_channels, name="🕵️-espionnage-pubs-tiktok-meta")
         
         winners_dossier = await generate_daily_winning_products(count=5)
-        header = f"🌅 **RADAR DU MATIN ({now_paris.strftime('%d/%m/%Y')} - 06:00) : 5 WINNERS VALIDÉS** 🎯
-
-"
+        header = f"🌅 **RADAR DU MATIN ({now_paris.strftime('%d/%m/%Y')} - 06:00) : 5 WINNERS VALIDÉS** 🎯\n\n"
         full_msg = header + winners_dossier
         
         if chasse_channel:
@@ -268,15 +256,11 @@ async def daily_product_hunt():
             
         if spy_channel:
             spy_dossier = await generate_daily_creative_spy()
-            spy_header = f"🕵️ **RADAR CRÉATIVES ADS DU MATIN ({now_paris.strftime('%d/%m/%Y')} - 06:00) : TOP 3 PUBS SCALÉES** 🎬
-
-"
+            spy_header = f"🕵️ **RADAR CRÉATIVES ADS DU MATIN ({now_paris.strftime('%d/%m/%Y')} - 06:00) : TOP 3 PUBS SCALÉES** 🎬\n\n"
             await send_smart_chunks(spy_channel, spy_header + spy_dossier)
                     
         if rapport_channel:
-            await rapport_channel.send(f"📊 **RADAR DU MATIN :**
-• Tes 5 produits gagnants du jour sont prêts dans {chasse_channel.mention if chasse_channel else '#🎯-chasse-produits-winners'} !
-• Tes 3 créatives/hooks à copier sont dans {spy_channel.mention if spy_channel else '#🕵️-espionnage-pubs-tiktok-meta'} !")
+            await rapport_channel.send(f"📊 **RADAR DU MATIN :**\n• Tes 5 produits gagnants du jour sont prêts dans {chasse_channel.mention if chasse_channel else '#🎯-chasse-produits-winners'} !\n• Tes 3 créatives/hooks à copier sont dans {spy_channel.mention if spy_channel else '#🕵️-espionnage-pubs-tiktok-meta'} !")
             
         with open(LAST_DAILY_HUNT_FILE, "w") as f:
             f.write(today_str)
@@ -357,12 +341,7 @@ async def on_message(message):
                     history_msgs.append(f"[{sender}]: {hist.content[:400]}")
             if history_msgs:
                 history_msgs.reverse()
-                history_context = "
---- HISTORIQUE RÉCENT DU SALON (#" + channel_name + ") ---
-" + "
-".join(history_msgs) + "
-------------------------------------------------
-"
+                history_context = f"\n--- HISTORIQUE RÉCENT DU SALON (#{channel_name}) ---\n" + "\n".join(history_msgs) + "\n------------------------------------------------\n"
         except Exception:
             pass
 
@@ -372,9 +351,7 @@ async def on_message(message):
         # 1. Project Specific Notes Recording
         if "vocaux-et-notes" in channel_name:
             async with message.channel.typing():
-                enhanced_prompt = f"{history_context}
-
-Message de Nader : {user_text}" if history_context else user_text
+                enhanced_prompt = f"{history_context}\n\nMessage de Nader : {user_text}" if history_context else user_text
                 response_text = await ask_gemini(enhanced_prompt, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
                 
                 project_key = "coussins" if "COUSSINS" in category_name.upper() else "ebook_handicap" if "EBOOK" in category_name.upper() else "general"
@@ -385,13 +362,9 @@ Message de Nader : {user_text}" if history_context else user_text
             async with message.channel.typing():
                 response_text = await query_live_notebooklm(user_text)
                 if not response_text or len(response_text) < 20:
-                    enhanced_prompt = f"{history_context}
-
-Question de Nader : {user_text}" if history_context else user_text
+                    enhanced_prompt = f"{history_context}\n\nQuestion de Nader : {user_text}" if history_context else user_text
                     response_text = await ask_gemini(enhanced_prompt, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
-                response_text = f"🧠 **NOTEBOOKLM (100 SOURCES E-COMMERCE) :**
-
-{response_text}"
+                response_text = f"🧠 **NOTEBOOKLM (100 SOURCES E-COMMERCE) :**\n\n{response_text}"
 
         # 3. Product Hunter Channel (Smart Intent Routing)
         elif "chasse-produits" in channel_name:
@@ -400,11 +373,8 @@ Question de Nader : {user_text}" if history_context else user_text
                 
                 if is_explicit_hunt:
                     winners_dossier = await generate_daily_winning_products(count=5, specific_niche=user_text)
-                    response_text = f"🎯 **RADAR WINNERS VALIDÉS (MÉTHODE FOCUS & ZEZINHO / FRANCE) :**
-
-{winners_dossier}"
+                    response_text = f"🎯 **RADAR WINNERS VALIDÉS (MÉTHODE FOCUS & ZEZINHO / FRANCE) :**\n\n{winners_dossier}"
                 else:
-                    # Nader demande de développer un produit spécifique ou d'analyser !
                     enhanced_prompt = f"""Tu es dans le salon #chasse-produits-winners.
 {history_context}
 
@@ -426,54 +396,38 @@ DIRECTIVES STRICTES :
         elif "espionnage" in channel_name or "tiktok-meta" in channel_name:
             async with message.channel.typing():
                 if media_parts or "http" in user_text or any(k in u_lower for k in ["analyse", "détaille", "réécris", "hook", "script", "développe"]):
-                    enhanced_prompt = f"{history_context}
-
-Demande de Nader : {user_text}" if history_context else user_text
+                    enhanced_prompt = f"{history_context}\n\nDemande de Nader : {user_text}" if history_context else user_text
                     response_text = await ask_gemini(enhanced_prompt, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
                 else:
                     spy_dossier = await generate_daily_creative_spy(specific_niche=user_text)
-                    response_text = f"🕵️ **DOSSIER ESPIONNAGE CRÉATIVES ADS (TIKTOK & META FRANCE) :**
-
-{spy_dossier}"
+                    response_text = f"🕵️ **DOSSIER ESPIONNAGE CRÉATIVES ADS (TIKTOK & META FRANCE) :**\n\n{spy_dossier}"
 
         # 5. All other QG and General channels
         else:
             async with message.channel.typing():
-                enhanced_prompt = f"{history_context}
-
-Demande de Nader : {user_text}" if history_context else user_text
+                enhanced_prompt = f"{history_context}\n\nDemande de Nader : {user_text}" if history_context else user_text
                 response_text = await ask_gemini(enhanced_prompt, media_parts=media_parts, channel_name=channel_name, category_name=category_name)
 
         # PONT GOOGLE SHEETS GLOBAL (Fonctionne dans TOUS les salons)
         if any(k in u_lower for k in ["sheet", "tableau", "transfèr", "export", "enregistr", "injecte dans le sheet", "ajoute au sheet"]):
-            context_for_sheet = (response_text + "
-
-" + history_context + "
-
-" + user_text)
+            context_for_sheet = response_text + "\n\n" + history_context + "\n\n" + user_text
             product_dict = parse_product_dossier_to_dict(context_for_sheet)
             push_res = push_to_google_sheet(product_dict)
             if push_res.get("success"):
-                response_text += f"
-
-📊 **GOOGLE SHEETS :** {push_res.get('message')}"
+                response_text += f"\n\n📊 **GOOGLE SHEETS :** {push_res.get('message')}"
             else:
-                response_text += f"
-
-📊 **GOOGLE SHEETS :** {push_res.get('message')}"
+                response_text += f"\n\n📊 **GOOGLE SHEETS :** {push_res.get('message')}"
 
         # Tâche Mac globale
         if "tâche mac" in u_lower or "à faire sur le mac" in u_lower or "a-faire-sur-le-mac" in channel_name:
-            task_summary = response_text.split("
-")[0][:120] if response_text else user_text[:120]
+            task_summary = response_text.split("\n")[0][:120] if response_text else user_text[:120]
             append_mac_task(task_summary, category=channel_name)
             guild = message.guild
             mac_channel = discord.utils.get(guild.text_channels, name="📋-a-faire-sur-le-mac")
             if mac_channel and mac_channel.id != message.channel.id:
                 task_embed = discord.Embed(
                     title="📌 NOUVELLE ACTION SYNCHRONISÉE POUR LE MAC",
-                    description=f"**Source :** Salon 
-**Action :** {task_summary}",
+                    description=f"**Source :** Salon #{channel_name}\n**Action :** {task_summary}",
                     color=discord.Color.green()
                 )
                 await mac_channel.send(embed=task_embed)
@@ -509,7 +463,7 @@ Demande de Nader : {user_text}" if history_context else user_text
 async def run_web_server():
     from aiohttp import web
     async def handle_ping(request):
-        return web.Response(text="Bot is running 24/7 on Cloud!")
+        return web.Response(text="QG Bot (Discord + Telegram 24/7) is running active on Cloud!")
 
     app = web.Application()
     app.router.add_get("/", handle_ping)
@@ -520,10 +474,38 @@ async def run_web_server():
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
     print(f"🌍 Health-check Web Server listening on port {port}")
+    return port
+
+async def anti_sleep_loop(port):
+    """Pings the health-check server every 8 minutes to guarantee Render never sleeps."""
+    render_external_url = os.environ.get("RENDER_EXTERNAL_URL")
+    url = f"{render_external_url}/health" if render_external_url else f"http://127.0.0.1:{port}/health"
+    await asyncio.sleep(60)
+    while True:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=10) as resp:
+                    if resp.status == 200:
+                        print(f"💓 [Anti-Sleep] Ping OK: {url}")
+        except Exception as e:
+            print(f"⚠️ [Anti-Sleep] Notice: {e}")
+        await asyncio.sleep(480)
 
 async def main():
-    await run_web_server()
-    await bot.start(DISCORD_BOT_TOKEN)
+    port = await run_web_server()
+    asyncio.create_task(anti_sleep_loop(port))
+    
+    tasks_to_run = [
+        start_telegram_polling(
+            ask_gemini,
+            push_to_sheet_func=push_to_google_sheet,
+            parse_product_func=parse_product_dossier_to_dict
+        )
+    ]
+    if DISCORD_BOT_TOKEN:
+        tasks_to_run.append(bot.start(DISCORD_BOT_TOKEN))
+        
+    await asyncio.gather(*tasks_to_run)
 
 if __name__ == "__main__":
     asyncio.run(main())
