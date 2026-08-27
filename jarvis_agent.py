@@ -254,6 +254,27 @@ async def send_chat_action(session, chat_id, action="typing"):
     except Exception:
         pass
 
+async def set_message_reaction(session, chat_id, message_id, emoji="⚡"):
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setMessageReaction"
+    payload = {
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "reaction": [{"type": "emoji", "emoji": emoji}]
+    }
+    try:
+        async with session.post(url, json=payload, timeout=5) as resp:
+            pass
+    except Exception:
+        pass
+
+async def keep_typing(session, chat_id, stop_event):
+    while not stop_event.is_set():
+        await send_chat_action(session, chat_id, "typing")
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=3.5)
+        except asyncio.TimeoutError:
+            pass
+
 async def download_telegram_file(session, file_id):
     try:
         get_file_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}"
@@ -288,50 +309,60 @@ async def run_telegram_jarvis():
                             chat_id = msg["chat"]["id"]
                             user_id = msg.get("from", {}).get("id")
                             
-                            # Indicateur de reflexion
-                            asyncio.create_task(send_chat_action(session, chat_id, "typing"))
+                            message_id = msg.get("message_id")
                             
-                            # 1. Traitement Audio / Vocal
-                            if "voice" in msg or "audio" in msg:
-                                voice_obj = msg.get("voice") or msg.get("audio")
-                                file_id = voice_obj.get("file_id")
-                                audio_bytes = await download_telegram_file(session, file_id)
-                                if audio_bytes:
-                                    mime_type = voice_obj.get("mime_type", "audio/ogg")
-                                    audio_part = {"mime_type": mime_type, "data": audio_bytes}
-                                    prompt_parts = [
-                                        audio_part,
-                                        "Ecoute attentivement ce message vocal de Nader. Transcris son intention, traite sa demande et execute les outils necessaires si besoin."
-                                    ]
-                                    reply = await ask_jarvis(user_id, prompt_parts)
-                                    log_conversation("🎤 [Message Vocal de Witcher]", reply)
-                                    await send_telegram_chunks(session, chat_id, reply)
-                                else:
-                                    await send_telegram_message(session, chat_id, "⚠️ Impossible de recuperer la note vocale.")
-                                continue
+                            # Feedback visuel 1 : Reaction immediate '⚡' sur la bulle de Nader
+                            if message_id:
+                                asyncio.create_task(set_message_reaction(session, chat_id, message_id, "⚡"))
+                            
+                            # Feedback visuel 2 : Indicateur 'en train d'ecrire...' maintenu actif en continu
+                            stop_typing = asyncio.Event()
+                            typing_task = asyncio.create_task(keep_typing(session, chat_id, stop_typing))
 
-                            # 2. Traitement Photo / Capture d ecran (S-Pen)
-                            if "photo" in msg:
-                                photos = msg.get("photo")
-                                largest = photos[-1]
-                                file_id = largest.get("file_id")
-                                caption = msg.get("caption", "Analyse cette image ou cette capture d ecran de Nader et reponds en detail.")
-                                img_bytes = await download_telegram_file(session, file_id)
-                                if img_bytes:
-                                    img_part = {"mime_type": "image/jpeg", "data": img_bytes}
-                                    reply = await ask_jarvis(user_id, [img_part, caption])
-                                    log_conversation(f"📷 [Photo / S-Pen] {caption}", reply)
-                                    await send_telegram_chunks(session, chat_id, reply)
-                                else:
-                                    await send_telegram_message(session, chat_id, "⚠️ Impossible de charger la photo.")
-                                continue
+                            try:
+                                # 1. Traitement Audio / Vocal
+                                if "voice" in msg or "audio" in msg:
+                                    voice_obj = msg.get("voice") or msg.get("audio")
+                                    file_id = voice_obj.get("file_id")
+                                    audio_bytes = await download_telegram_file(session, file_id)
+                                    if audio_bytes:
+                                        mime_type = voice_obj.get("mime_type", "audio/ogg")
+                                        audio_part = {"mime_type": mime_type, "data": audio_bytes}
+                                        prompt_parts = [
+                                            audio_part,
+                                            "Ecoute attentivement ce message vocal de Nader. Transcris son intention, traite sa demande et execute les outils necessaires si besoin."
+                                        ]
+                                        reply = await ask_jarvis(user_id, prompt_parts)
+                                        log_conversation("🎤 [Message Vocal de Witcher]", reply)
+                                        await send_telegram_chunks(session, chat_id, reply)
+                                    else:
+                                        await send_telegram_message(session, chat_id, "⚠️ Impossible de recuperer la note vocale.")
+                                    continue
 
-                            # 3. Traitement Texte standard
-                            text = msg.get("text", "").strip()
-                            if text:
-                                reply = await ask_jarvis(user_id, text)
-                                log_conversation(text, reply)
-                                await send_telegram_chunks(session, chat_id, reply)
+                                # 2. Traitement Photo / Capture d ecran (S-Pen)
+                                if "photo" in msg:
+                                    photos = msg.get("photo")
+                                    largest = photos[-1]
+                                    file_id = largest.get("file_id")
+                                    caption = msg.get("caption", "Analyse cette image ou cette capture d ecran de Nader et reponds en detail.")
+                                    img_bytes = await download_telegram_file(session, file_id)
+                                    if img_bytes:
+                                        img_part = {"mime_type": "image/jpeg", "data": img_bytes}
+                                        reply = await ask_jarvis(user_id, [img_part, caption])
+                                        log_conversation(f"📷 [Photo / S-Pen] {caption}", reply)
+                                        await send_telegram_chunks(session, chat_id, reply)
+                                    else:
+                                        await send_telegram_message(session, chat_id, "⚠️ Impossible de charger la photo.")
+                                    continue
+
+                                # 3. Traitement Texte standard
+                                text = msg.get("text", "").strip()
+                                if text:
+                                    reply = await ask_jarvis(user_id, text)
+                                    log_conversation(text, reply)
+                                    await send_telegram_chunks(session, chat_id, reply)
+                            finally:
+                                stop_typing.set()
                                 
                     elif resp.status == 409:
                         logging.warning("⚠️ Conflit de polling Telegram detecte. Attente de 15s...")
