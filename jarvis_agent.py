@@ -198,6 +198,18 @@ async def send_telegram_message(session, chat_id, text):
     except Exception as e:
         logging.error(f"Erreur envoi Telegram: {e}")
 
+HISTORY_FILE_MD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "shared_brain", "HISTORIQUE_DISCUSSIONS_JARVIS.md")
+
+def log_conversation(prompt_desc, reply_text):
+    try:
+        os.makedirs(os.path.dirname(HISTORY_FILE_MD), exist_ok=True)
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        entry_md = f"\n### 🕒 [{now_str}]\n**👤 Witcher (Nader) :**\n{prompt_desc}\n\n**🤖 JARVIS :**\n{reply_text}\n\n---\n"
+        with open(HISTORY_FILE_MD, "a", encoding="utf-8") as f:
+            f.write(entry_md)
+    except Exception as e:
+        logging.error(f"Erreur enregistrement historique: {e}")
+
 async def send_chat_action(session, chat_id, action="typing"):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendChatAction"
     try:
@@ -256,6 +268,7 @@ async def run_telegram_jarvis():
                                         "Ecoute attentivement ce message vocal de Nader. Transcris son intention, traite sa demande et execute les outils necessaires si besoin."
                                     ]
                                     reply = await ask_jarvis(user_id, prompt_parts)
+                                    log_conversation("🎤 [Message Vocal de Witcher]", reply)
                                     await send_telegram_chunks(session, chat_id, reply)
                                 else:
                                     await send_telegram_message(session, chat_id, "⚠️ Impossible de recuperer la note vocale.")
@@ -271,6 +284,7 @@ async def run_telegram_jarvis():
                                 if img_bytes:
                                     img_part = {"mime_type": "image/jpeg", "data": img_bytes}
                                     reply = await ask_jarvis(user_id, [img_part, caption])
+                                    log_conversation(f"📷 [Photo / S-Pen] {caption}", reply)
                                     await send_telegram_chunks(session, chat_id, reply)
                                 else:
                                     await send_telegram_message(session, chat_id, "⚠️ Impossible de charger la photo.")
@@ -280,6 +294,7 @@ async def run_telegram_jarvis():
                             text = msg.get("text", "").strip()
                             if text:
                                 reply = await ask_jarvis(user_id, text)
+                                log_conversation(text, reply)
                                 await send_telegram_chunks(session, chat_id, reply)
                                 
                     elif resp.status == 409:
