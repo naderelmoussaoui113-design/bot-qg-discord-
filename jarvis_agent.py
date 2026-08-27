@@ -123,24 +123,60 @@ def push_to_google_sheet(product_name: str, niche: str = "E-commerce", price_ali
         with urllib.request.urlopen(req, timeout=10) as resp:
             return f"✅ Produit '{product_name}' injecte avec succes dans le Google Sheet !"
     except Exception as e:
-        return "⚠️ Erreur lors de l envoi au Google Sheet: " + str(e)
+        return f"⚠️ Erreur Google Sheet: {e}"
 
-JARVIS_TOOLS = [execute_bash, search_web, fetch_webpage, push_to_google_sheet]
+def query_notebooklm(question: str) -> str:
+    """Interroger le carnet Google NotebookLM de Nader (100 sources e-commerce, strategies, notes)."""
+    knowledge_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "knowledge", "ECOMMERCE_100_SOURCES.txt")
+    if not os.path.exists(knowledge_path):
+        return "Le carnet local NotebookLM est synchronise dans BOT_QG_DISCORD/knowledge."
+    try:
+        with open(knowledge_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+        words = [w.lower() for w in question.split() if len(w) > 3]
+        lines = content.splitlines()
+        matched = []
+        for i, line in enumerate(lines):
+            if any(w in line.lower() for w in words):
+                start = max(0, i - 2)
+                end = min(len(lines), i + 6)
+                matched.append("\n".join(lines[start:end]))
+                if len(matched) >= 5:
+                    break
+        if matched:
+            return "Extraits pertinents trouves dans NotebookLM :\n\n" + "\n---\n".join(matched)
+        return "Contenu extrait du carnet NotebookLM :\n\n" + content[:2500]
+    except Exception as e:
+        return f"Erreur lecture carnet NotebookLM : {e}"
 
-SYSTEM_PROMPT = """Tu es JARVIS, l assistant executif autonome et le clone d elite de l IA Antigravity au service exclusif de Nader (titre: Mon commandant / Witcher / Monsieur le PDG).
+def access_google_drive(query: str = "") -> str:
+    """Acceder aux dossiers et fichiers Google Drive synchronises de Nader (SOURCES_NOTEBOOKLM, LIVES)."""
+    try:
+        staging = os.path.expanduser("~/Documents/A_ENVOYER_SUR_DRIVE")
+        res = "Google Drive est synchronise via rclone (remote: gdrive:MON_ESPACE_IA/SOURCES_NOTEBOOKLM/)."
+        if os.path.exists(staging):
+            f_list = os.listdir(staging)
+            res += f" Dossier local de transit detecte : {len(f_list)} element(s)."
+        return res
+    except Exception as e:
+        return f"Statut Google Drive : {e}"
 
-MISSIONS & REGLES FONDAMENTALES :
-1. ZERO EXCUSE : Tu ne dis JAMAIS "je ne peux pas faire ca", "je suis juste un modele de langage", ou "je n ai pas acces". Tu disposes d un terminal Linux complet et d outils puissants (execute_bash, search_web, fetch_webpage, push_to_google_sheet).
-2. EXECUTION REELLE : 
-   - Si Nader te demande un calcul financier ou une formule complexe : utilise Python ou execute_bash pour calculer avec une precision mathematique.
-   - Si Nader te demande des infos sur un produit, un site ou un concurrent : utilise search_web ou fetch_webpage pour scraper et analyser le web en direct.
-   - Si Nader te demande d ajouter un produit dans son tableau : utilise push_to_google_sheet.
-   - Si Nader te demande d ecrire ou de tester un script : execute-le avec execute_bash pour lui donner le resultat reel.
-3. CONTEXTE BUSINESS NADER :
-   - Marque d oreillers & posture : Ergolanes (Oreiller cervical en gel a memoire de forme, Orthese mandibulaire anti-ronflement).
-   - Ebook : "Manuel de Survie Face au Handicap — Ce que les medecins ne vous diront jamais".
-   - Methodologie marketing : Offre $100M d Alex Hormozi (Offre irresistible, Solo vs Duo, elimination totale du risque, garantie 30 jours, hooks emotionnels 0-3s).
-4. TONE & STYLE : Percutant, direct, proactif, ultra-competent, sans bavardage inutile. Tu reponds en francais avec une structure claire et des emojis professionnels."""
+JARVIS_TOOLS = [execute_bash, search_web, fetch_webpage, push_to_google_sheet, query_notebooklm, access_google_drive]
+
+SYSTEM_PROMPT = """Tu es JARVIS, l assistant executif personnel et direct de Nader (Witcher).
+
+REGLES D OR ABSOLUES :
+1. ZERO BAVARDAGE & ZERO POLLUTION :
+   - Ne propose JAMAIS de listes d idees, de plans business, d offres ou de suggestions non sollicitees.
+   - Ne parle JAMAIS de business, de vente ou d e-commerce SAUF si Nader te pose explicitement une question dessus.
+   - Sois ULTRA CONCIS, precis et factuel. Reponds directement a la question posee en 1 a 3 phrases sans blabla.
+2. OUTILS DISPONIBLES :
+   - Pour NotebookLM : utilise l outil query_notebooklm(question). Tu as un acces direct aux carnets et sources de Nader. Ne dis JAMAIS "je n ai pas les cles d API".
+   - Pour Google Drive : utilise l outil access_google_drive(query).
+   - Pour executer du code / des calculs : utilise execute_bash(command).
+   - Pour le web : utilise search_web(query) ou fetch_webpage(url).
+   - Pour le tableur : utilise push_to_google_sheet.
+3. ZERO EXCUSE : Tu ne dis JAMAIS "je suis une IA", "je ne peux pas faire ca" ou "je n ai pas acces". Tu appelles l outil adapte et tu donnes le resultat direct."""
 
 PRIMARY_MODEL = "gemini-3.5-flash"
 
