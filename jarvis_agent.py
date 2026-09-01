@@ -384,11 +384,21 @@ async def handle_ping(request):
         "capabilities": ["execute_bash", "search_web", "fetch_webpage", "push_to_google_sheet", "multimodal_vision_audio"]
     })
 
+async def handle_history(request):
+    if os.path.exists(HISTORY_FILE_MD):
+        try:
+            with open(HISTORY_FILE_MD, "r", encoding="utf-8", errors="ignore") as f:
+                return web.Response(text=f.read(), content_type="text/markdown; charset=utf-8")
+        except Exception as e:
+            return web.Response(text=f"Erreur lecture historique: {e}", status=500)
+    return web.Response(text="Aucun historique sur le serveur.", content_type="text/plain")
+
 async def run_web_server():
     app = web.Application()
     app.router.add_get("/", handle_ping)
     app.router.add_get("/ping", handle_ping)
     app.router.add_get("/health", handle_ping)
+    app.router.add_get("/history", handle_history)
     runner = web.AppRunner(app)
     await runner.setup()
     port = int(os.getenv("PORT", 10000))
