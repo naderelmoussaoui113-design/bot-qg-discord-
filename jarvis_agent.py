@@ -187,7 +187,14 @@ def get_jarvis_model(model_name="gemini-3.5-flash"):
         tools=JARVIS_TOOLS
     )
 
+USER_CONVERSATIONS = {} # Dictionnaire de memoire continue par utilisateur
+
 async def ask_jarvis(user_id, prompt_or_parts):
+    # Commande rapide de reinitialisation de memoire si besoin
+    if isinstance(prompt_or_parts, str) and prompt_or_parts.strip().lower() in ["/reset", "/clear", "reset", "oublie tout", "nouvelle discussion"]:
+        USER_CONVERSATIONS[user_id] = []
+        return "🧠 Memoire reinitialisee mon Commandant. De quoi veux-tu parler ?"
+
     # Les modèles 100% GRATUITS avec 1500 requêtes par jour chacun (Total : > 3000 requêtes/jour sans payer 1 centime !)
     models_to_try = [
         "gemini-3.5-flash",        # Le modèle complet (1500 requêtes/jour gratuites)
@@ -196,13 +203,17 @@ async def ask_jarvis(user_id, prompt_or_parts):
         "gemini-3.7-flash"         # En bonus quand le quota journalier est dispo
     ]
 
+    current_history = USER_CONVERSATIONS.get(user_id, [])
+
     last_err = None
     for m_name in models_to_try:
         try:
             model = get_jarvis_model(m_name)
-            chat = model.start_chat(enable_automatic_function_calling=True)
+            chat = model.start_chat(history=current_history, enable_automatic_function_calling=True)
             res = chat.send_message(prompt_or_parts)
             if res and res.text:
+                # Sauvegarde l historique (20 derniers messages = 10 echanges complets de contexte)
+                USER_CONVERSATIONS[user_id] = chat.history[-20:]
                 return res.text
         except Exception as e:
             err_str = str(e)
